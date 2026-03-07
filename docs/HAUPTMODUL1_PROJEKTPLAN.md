@@ -36,36 +36,40 @@ Automatisierte Verarbeitung von Grundlagenformularen:
 
 ## Untermodule
 
-### 1.1 Backend-Infrastruktur
+### 1.1 Backend-Infrastruktur ✅
 
 **Ziel:** FastAPI-Projekt aufsetzen mit sauberer Struktur
 
 | Task | Beschreibung | Status |
 |------|--------------|--------|
-| 1.1.1 | FastAPI-Grundstruktur erstellen | ⬜ |
-| 1.1.2 | Umgebungsvariablen erweitern (OpenRouter API-Key) | ⬜ |
-| 1.1.3 | Logging-System implementieren | ⬜ |
-| 1.1.4 | Error-Handling & Exceptions definieren | ⬜ |
-| 1.1.5 | Health-Check Endpunkt | ⬜ |
+| 1.1.1 | FastAPI-Grundstruktur erstellen | ✅ `app/main.py` |
+| 1.1.2 | Umgebungsvariablen erweitern (OpenRouter API-Key) | ✅ `app/config.py` |
+| 1.1.3 | Logging-System implementieren | ✅ `app/logger.py` |
+| 1.1.4 | Error-Handling & Exceptions definieren | ✅ `app/exceptions.py` |
+| 1.1.5 | Health-Check Endpunkt | ✅ `/health` in `main.py` |
 
 **Abhängigkeiten:** Keine
 
+**Implementiert:** 2026-03-07
+
 ---
 
-### 1.2 Datei-Management
+### 1.2 Datei-Management ✅
 
 **Ziel:** Ordnerüberwachung und Dateiorganisation
 
 | Task | Beschreibung | Status |
 |------|--------------|--------|
-| 1.2.1 | Ordnerstruktur anlegen (`inbox/`, `processing/`, `archive/`, `error/`) | ⬜ |
-| 1.2.2 | Watchdog-Service für `inbox/` implementieren | ⬜ |
-| 1.2.3 | Datei-Validierung (PDF-Format, Größe) | ⬜ |
-| 1.2.4 | Datei-Handling: Inbox → Processing → Archive/Error | ⬜ |
-| 1.2.5 | Duplicate-Erkennung (Hash-basiert) | ⬜ |
-| 1.2.6 | PNG-Dateien mit ins Archiv verschieben | ⬜ |
+| 1.2.1 | Ordnerstruktur anlegen (`inbox/`, `processing/`, `archive/`, `error/`) | ✅ `ensure_directories()` |
+| 1.2.2 | Watchdog-Service für `inbox/` implementieren | ✅ `app/file_watcher.py` |
+| 1.2.3 | Datei-Validierung (PDF-Format, Größe) | ✅ `validate_pdf_file()` |
+| 1.2.4 | Datei-Handling: Inbox → Processing → Archive/Error | ✅ `move_file_to_processing()`, `move_to_archive()`, `move_to_error()` |
+| 1.2.5 | Duplicate-Erkennung (Hash-basiert) | ✅ `calculate_file_hash()` |
+| 1.2.6 | PNG-Dateien mit ins Archiv verschieben | ✅ `move_to_archive()` mit `png_files` Parameter |
 
 **Abhängigkeiten:** 1.1
+
+**Implementiert:** 2026-03-07
 
 **Ordnerstruktur:**
 ```
@@ -112,42 +116,66 @@ Automatisierte Verarbeitung von Grundlagenformularen:
 
 ---
 
-### 1.3 PDF-Konvertierung
+### 1.3 PDF-Konvertierung ✅
 
 **Ziel:** PDFs für Vision-Modelle aufbereiten
 
 | Task | Beschreibung | Status |
 |------|--------------|--------|
-| 1.3.1 | PDF-zu-Bild Konvertierung (`pdf2image`) | ⬜ |
-| 1.3.2 | Bild-Optimierung (Größe, Qualität) | ⬜ |
-| 1.3.3 | Base64-Encoding für API-Übertragung | ⬜ |
-| 1.3.4 | Multi-Page-Handling (mehrseitige PDFs) | ⬜ |
+| 1.3.1 | PDF-zu-Bild Konvertierung (`pdf2image`) | ✅ `pdf_zu_bilder()` |
+| 1.3.2 | Bild-Optimierung (Größe, Qualität) | ✅ `_optimiere_bild()` mit PIL |
+| 1.3.3 | Base64-Encoding für API-Übertragung | ✅ `bild_zu_base64()` |
+| 1.3.4 | Multi-Page-Handling (mehrseitige PDFs) | ✅ `konvertiere_pdf_fuer_vision()` |
 
 **Abhängigkeiten:** 1.2
 
+**Implementiert:** 2026-03-07
+
 **Technologie:**
-- `pdf2image` mit `poppler-utils`
-- Ziel: 1 Bild pro Seite, optimiert für OCR
+- `pdf2image` mit `poppler-utils` für PDF-zu-Bild
+- `Pillow` für Bild-Optimierung
+- DPI: 200, Max-Größe: 2000x3000px
+
+**Modul:** `app/pdf_converter.py`
+
+**Funktionen:**
+- `pdf_zu_bilder()` - Konvertiert PDF zu PNG-Bildern
+- `bild_zu_base64()` - Erstellt Data-URI für API-Übertragung
+- `konvertiere_pdf_fuer_vision()` - Hauptfunktion mit allen Features
+- `get_pdf_info()` - Metadaten ohne Konvertierung
+
+**Getestet mit:** `files/inbox/Form2.pdf` (4 Seiten, ~1MB)
 
 ---
 
-### 1.4 OpenRouter-Integration
+### 1.4 OpenRouter-Integration ✅
 
 **Ziel:** KI-API für Formular-Extraktion anbinden
 
 | Task | Beschreibung | Status |
 |------|--------------|--------|
-| 1.4.1 | OpenRouter API-Client erstellen | ⬜ |
-| 1.4.2 | Prompt für Grundlagenformular entwickeln | ⬜ |
-| 1.4.3 | Response-Schema definieren (JSON-Struktur) | ⬜ |
-| 1.4.4 | Retry-Logik bei API-Fehlern | ⬜ |
-| 1.4.5 | Rate-Limiting beachten | ⬜ |
+| 1.4.1 | OpenRouter API-Client erstellen | ✅ `app/openrouter_client.py` |
+| 1.4.2 | Prompt für Grundlagenformular entwickeln | ✅ `app/prompts.py` |
+| 1.4.3 | Response-Schema definieren (JSON-Struktur) | ✅ `app/schemas/extraction.py` |
+| 1.4.4 | Retry-Logik bei API-Fehlern | ✅ Exponential-Backoff (2^attempt Sekunden) |
+| 1.4.5 | Rate-Limiting beachten | ✅ Retry-After Header + 429-Handling |
 
 **Abhängigkeiten:** 1.3
 
+**Implementiert:** 2026-03-07
+
 **Verwendetes Modell:**
-- Qwen2.5-VL über OpenRouter
-- Fallback-Option: Claude 3.5 Sonnet (falls nötig)
+- Qwen2.5-VL-72B-Instruct über OpenRouter
+- API-Timeout: 120s (Vision-Modelle benötigen ~30-60s)
+
+**Module:**
+- `app/openrouter_client.py` - Async API-Client mit Retry-Logik
+- `app/prompts.py` - System-Prompt mit allen Enum-Werten
+- `app/schemas/extraction.py` - Pydantic-Modelle für Validierung
+
+**Getestet mit:** `files/Form2.pdf` (4 Seiten, ~1MB)
+- Ergebnis: 22 Felder extrahiert, 12 Räume erkannt
+- Test-Skript: `backend/test_openrouter.py`
 
 ---
 
@@ -209,19 +237,19 @@ Automatisierte Verarbeitung von Grundlagenformularen:
 ## Abhängigkeits-Diagramm
 
 ```
-1.1 Backend-Infrastruktur
+1.1 Backend-Infrastruktur ✅
     │
-    ├──> 1.2 Datei-Management
+    ├──> 1.2 Datei-Management ✅
     │        │
-    │        └──> 1.3 PDF-Konvertierung
+    │        └──> 1.3 PDF-Konvertierung ✅
     │                 │
-    │                 └──> 1.4 OpenRouter-Integration
+    │                 └──> 1.4 OpenRouter-Integration ✅
     │                          │
-    │                          └──> 1.5 Daten-Mapping
+    │                          └──> 1.5 Daten-Mapping ⬜ (NÄCHSTER SCHRITT)
     │                                   │
-    │                                   └──> 1.6 Datenbank-Integration
+    │                                   └──> 1.6 Datenbank-Integration ⬜
     │
-    └──────────────────────────────────────────> 1.7 Workflow-Orchestrierung
+    └──────────────────────────────────────────> 1.7 Workflow-Orchestrierung ⬜
 ```
 
 ---
@@ -241,9 +269,9 @@ Automatisierte Verarbeitung von Grundlagenformularen:
 
 ## Nächste Schritte
 
-1. **Sofort:** Untermodule 1.1 und 1.2 parallel starten
-2. **Danach:** 1.3 PDF-Konvertierung implementieren
-3. **Parallel:** OpenRouter API-Key besorgen und 1.4 testen
+1. **Aktuell:** 1.5 Daten-Mapping & Validierung implementieren
+2. **Danach:** 1.6 Datenbank-Integration
+3. **Abschließend:** 1.7 Workflow-Orchestrierung
 
 ---
 
@@ -258,4 +286,5 @@ Automatisierte Verarbeitung von Grundlagenformularen:
 ---
 
 *Erstellt: 2026-03-07*
-*Status: Planung*
+*Letztes Update: 2026-03-07*
+*Status: In Entwicklung - 1.1, 1.2, 1.3 & 1.4 abgeschlossen*

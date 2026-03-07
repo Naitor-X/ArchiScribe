@@ -24,11 +24,28 @@
 - Multi-Page-Handling
 - Modul: `app/pdf_converter.py`
 
+#### 1.4 OpenRouter-Integration ✅ (2026-03-07)
+- Async API-Client mit `httpx`
+- Pydantic-Modelle für Request/Response (`app/schemas/extraction.py`)
+- System-Prompt mit allen Enum-Werten (`app/prompts.py`)
+- Exponential-Backoff Retry-Logik (3 Versuche)
+- Rate-Limiting mit Retry-After Header
+- JSON-Extraktion aus verschiedenen Antwortformaten
+- Modul: `app/openrouter_client.py`
+- Test: `test_openrouter.py` (22 Felder, 12 Räume aus Form2.pdf)
+
 ## Test-PDF
 
-**Original:** `/files/inbox/Form2.pdf` (4 Seiten, ~1MB)
+**Original:** `/files/Form2.pdf` (4 Seiten, ~1MB)
 - **WICHTIG:** Immer kopieren, nie verschieben!
+- Test-Skript liest direkt aus Hauptordner (nicht inbox, da Watchdog)
 
 ## Lesson Learned
 
-_Noch keine Einträge_
+### OpenRouter API-Timeout
+- Vision-Modelle benötigen ~30-60s für 4-seitige PDFs
+- Timeout auf 120s konfiguriert (`openrouter_timeout`)
+
+### JSON aus KI-Response extrahieren
+- KI kann JSON in Markdown-Code-Blöcken zurückgeben
+- Funktion `_extract_json_from_response()` behandelt verschiedene Formate
