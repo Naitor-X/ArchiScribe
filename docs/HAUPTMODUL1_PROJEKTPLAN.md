@@ -179,42 +179,60 @@ Automatisierte Verarbeitung von Grundlagenformularen:
 
 ---
 
-### 1.5 Daten-Mapping & Validierung
+### 1.5 Daten-Mapping & Validierung ✅
 
 **Ziel:** KI-Response auf Datenbank-Schema mappen
 
 | Task | Beschreibung | Status |
 |------|--------------|--------|
-| 1.5.1 | Mapping-Logik (JSON → DB-Felder) | ⬜ |
-| 1.5.2 | Pflichtfeld-Validierung | ⬜ |
-| 1.5.3 | Enum-Werte prüfen und normalisieren | ⬜ |
-| 1.5.4 | "Sonstiges"-Felder verarbeiten | ⬜ |
-| 1.5.5 | Plausibilitätsprüfungen (z.B. Baujahr, Flächen) | ⬜ |
+| 1.5.1 | Mapping-Logik (JSON → DB-Felder) | ✅ `map_extraction_to_project()` |
+| 1.5.2 | Pflichtfeld-Validierung | ✅ Warnungen für leere Pflichtfelder |
+| 1.5.3 | Enum-Werte prüfen und normalisieren | ✅ `normalize_enum()` mit Normalisierungstabelle |
+| 1.5.4 | "Sonstiges"-Felder verarbeiten | ✅ Plausibilitätsprüfung + Warnungen |
+| 1.5.5 | Plausibilitätsprüfungen (z.B. Baujahr, Flächen) | ✅ `validate_plausibility()` |
 
 **Abhängigkeiten:** 1.4
 
-**Referenz:** `docs/DATABASE.md` für alle Enum-Werte und Felder
+**Implementiert:** 2026-03-07
+
+**Modul:** `app/mapping.py`
+
+**Features:**
+- `MappedProject` Dataclass für DB-kompatible Struktur
+- `ValidationResult` mit Warnungen/Fehlern
+- Enum-Normalisierung für häufige Varianten (z.B. "Sanierung/Modernisierung" → "Sanierung/Modernis.")
+- Datum-Parsing (ISO + deutsches Format)
+- Decimal-Konvertierung (auch deutsche Schreibweise mit Komma)
 
 ---
 
-### 1.6 Datenbank-Integration
+### 1.6 Datenbank-Integration ✅
 
 **Ziel:** Extrahierte Daten in PostgreSQL speichern
 
 | Task | Beschreibung | Status |
 |------|--------------|--------|
-| 1.6.1 | Database-Connection-Pool einrichten | ⬜ |
-| 1.6.2 | Projekt anlegen mit Status `raw_extracted` | ⬜ |
-| 1.6.3 | AI-Extraktion in `ai_extractions` speichern | ⬜ |
-| 1.6.4 | Räume in `project_rooms` einfügen | ⬜ |
-| 1.6.5 | PDF-Pfad und PNG-Pfade in DB speichern | ⬜ |
-| 1.6.6 | Transaktionssicherheit (Rollback bei Fehlern) | ⬜ |
+| 1.6.1 | Database-Connection-Pool einrichten | ✅ `asyncpg` Pool |
+| 1.6.2 | Projekt anlegen mit Status `raw_extracted` | ✅ `_insert_project()` |
+| 1.6.3 | AI-Extraktion in `ai_extractions` speichern | ✅ `_insert_ai_extraction()` |
+| 1.6.4 | Räume in `project_rooms` einfügen | ✅ `_insert_rooms()` |
+| 1.6.5 | PDF-Pfad und PNG-Pfade in DB speichern | ✅ `pdf_path`, `page_paths` JSONB |
+| 1.6.6 | Transaktionssicherheit (Rollback bei Fehlern) | ✅ `conn.transaction()` Context-Manager |
 
 **Abhängigkeiten:** 1.5
 
-**DB-Erweiterung erforderlich:**
-- Neues Feld `page_paths` (JSONB) in `projects` für PNG-Pfade
-- Siehe `docs/DATABASE.md` für Schema-Update
+**Implementiert:** 2026-03-07
+
+**Modul:** `app/database.py`
+
+**Funktionen:**
+- `init_db_pool()` / `close_db_pool()` - Lifecycle-Management
+- `save_project()` - Hauptfunktion für komplette Projektspeicherung
+- `get_project_by_id()` - Laden mit Räumen und AI-Extraktion
+- `update_project_status()` - Status-Änderung mit History-Eintrag
+- `ensure_test_tenant_exists()` - Test-Setup
+
+**Dependency:** `asyncpg>=0.29.0` (async PostgreSQL-Driver)
 
 ---
 
@@ -245,11 +263,11 @@ Automatisierte Verarbeitung von Grundlagenformularen:
     │                 │
     │                 └──> 1.4 OpenRouter-Integration ✅
     │                          │
-    │                          └──> 1.5 Daten-Mapping ⬜ (NÄCHSTER SCHRITT)
+    │                          └──> 1.5 Daten-Mapping ✅
     │                                   │
-    │                                   └──> 1.6 Datenbank-Integration ⬜
+    │                                   └──> 1.6 Datenbank-Integration ✅
     │
-    └──────────────────────────────────────────> 1.7 Workflow-Orchestrierung ⬜
+    └──────────────────────────────────────────> 1.7 Workflow-Orchestrierung ⬜ (NÄCHSTER SCHRITT)
 ```
 
 ---
@@ -269,9 +287,8 @@ Automatisierte Verarbeitung von Grundlagenformularen:
 
 ## Nächste Schritte
 
-1. **Aktuell:** 1.5 Daten-Mapping & Validierung implementieren
-2. **Danach:** 1.6 Datenbank-Integration
-3. **Abschließend:** 1.7 Workflow-Orchestrierung
+1. **Aktuell:** 1.7 Workflow-Orchestrierung implementieren
+2. Alle Komponenten zu automatisierter Pipeline verbinden
 
 ---
 
@@ -287,4 +304,4 @@ Automatisierte Verarbeitung von Grundlagenformularen:
 
 *Erstellt: 2026-03-07*
 *Letztes Update: 2026-03-07*
-*Status: In Entwicklung - 1.1, 1.2, 1.3 & 1.4 abgeschlossen*
+*Status: In Entwicklung - 1.1 bis 1.6 abgeschlossen, 1.7 als nächster Schritt*

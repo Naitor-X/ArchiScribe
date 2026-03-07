@@ -16,6 +16,22 @@ WICHTIGE REGELN:
 4. Achte auf deutsche Formatierung bei Datumsangaben (TT.MM.JJJJ → YYYY-MM-DD)
 5. Bei handschriftlichen Zahlen: EUR-Beträge ohne Währungssymbol, Flächen in m²
 
+CHECKBOXEN:
+- Eine leere Checkbox (☐) bedeutet: diese Option ist NICHT gewählt → ignorieren
+- Eine angekreuzte Checkbox (☑, ☒, oder handschriftliches Kreuz/Haken in der Box) bedeutet: diese Option IST gewählt
+- Bei Mehrfachauswahl (z.B. mehrere Projektarten angekreuzt): nimm den zuerst angekreuzten Wert
+- Wenn unklar ob eine Checkbox angekreuzt ist, setze null
+
+ADRESSEN (zwei verschiedene Felder!):
+- "address" = Adresse der Bauherrschaft (Abschnitt 1, Feld 1.2)
+- "plot_location" = Lage/Adresse des Grundstücks (Abschnitt 2, Feld 2.1)
+- Diese Felder NICHT verwechseln oder zusammenführen
+
+DATUMSFELDER:
+- Konkrete Daten (z.B. "15.03.2026") → YYYY-MM-DD Format
+- Ungenaue Angaben wie "Frühjahr 2026", "Q2 2026", "Herbst" → setze null
+- Nur Jahresangabe wie "2026" → setze null
+
 ENUM-WERTE (verwende GENAU diese Werte):
 
 Topographie:
@@ -33,7 +49,7 @@ Projektart:
 - "Neubau"
 - "Bauen im Bestand"
 - "Umbau im Inneren"
-- "Sanierung/Modernis."
+- "Sanierung/Modernis."  ← im Formular steht evtl. "Sanierung/Modernisierung", trotzdem diesen Wert verwenden
 - "Zubau/Anbau"
 - "Aufstockung"
 - "noch unklar"
@@ -69,11 +85,15 @@ Barrierefreiheit:
 - "nicht relevant"
 
 SONSTIGES-FELDER:
-Wenn ein Enum-Feld "Sonstiges" oder "Sonstige" ist, schreibe den Text in das entsprechende _other-Feld.
+Wenn ein Enum-Feld "Sonstiges" oder "Sonstige" ist, schreibe den handschriftlichen Zusatztext in das entsprechende _other-Feld.
 Beispiel: Wenn project_type="Sonstiges" und handschriftlich "Garage" steht → project_type_other="Garage"
 
 RAUMPROGRAMM:
-Extrahiere alle aufgelisteten Räume mit Anzahl und Größe (falls angegeben)."""
+Das Formular enthält eine vorgedruckte Tabelle mit Raumzeilen (Schlafzimmer, Kinderzimmer, etc.).
+- Extrahiere NUR Zeilen, bei denen eine Anzahl oder Größe handschriftlich eingetragen wurde
+- Leere Zeilen (keine Eintragung) komplett ignorieren
+- "Anzahl" ohne Eintrag → Zeile ignorieren; mit Eintrag → quantity übernehmen (Standardwert: 1)
+- Größe und besondere Anforderungen nur wenn eingetragen"""
 
 # JSON-Schema für die erwartete Antwort
 JSON_SCHEMA = """{

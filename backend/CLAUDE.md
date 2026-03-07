@@ -34,6 +34,22 @@
 - Modul: `app/openrouter_client.py`
 - Test: `test_openrouter.py` (22 Felder, 12 Räume aus Form2.pdf)
 
+#### 1.5 Daten-Mapping & Validierung ✅ (2026-03-07)
+- Mapping KI-JSON → DB-Felder
+- Enum-Werte normalisieren (Groß-/Kleinschreibung, Varianten)
+- Plausibilitätsprüfungen (Baujahr, Flächen, Budget)
+- "Sonstiges"-Felder-Handling
+- Modul: `app/mapping.py`
+
+#### 1.6 Datenbank-Integration ✅ (2026-03-07)
+- Async Connection-Pool mit `asyncpg`
+- Transaktionssichere Projektspeicherung
+- AI-Extraktion in `ai_extractions` speichern
+- Räume in `project_rooms` einfügen
+- Status-Updates mit History-Eintrag
+- Modul: `app/database.py`
+- Test: `test_db_integration.py`
+
 ## Test-PDF
 
 **Original:** `/files/Form2.pdf` (4 Seiten, ~1MB)
