@@ -106,8 +106,17 @@
 | `id` | UUID | PK, auto-generated | Eindeutige Projekt-ID |
 | `tenant_id` | UUID | FK → tenants, NOT NULL | Mandantenzuordnung |
 | `status_id` | VARCHAR(50) | FK → project_statuses, DEFAULT 'raw_extracted' | Projektstatus |
-| `original_file_url` | VARCHAR(500) | - | Link zum Original-Scan |
+| `pdf_path` | VARCHAR(500) | - | Pfad zum Original-PDF im Archiv |
+| `page_paths` | JSONB | - | Array mit PNG-Pfaden pro Seite (für Frontend-Vorschau) |
 | `created_at` | TIMESTAMPTZ | DEFAULT NOW() | Erstellungszeitpunkt |
+
+**Beispiel `page_paths` JSONB:**
+```json
+[
+  "/files/archive/tenant_abc/project_123/page_001_20260307_143022.png",
+  "/files/archive/tenant_abc/project_123/page_002_20260307_143022.png"
+]
+```
 | `updated_at` | TIMESTAMPTZ | DEFAULT NOW(), auto-update | Letzte Änderung |
 
 #### Allgemeine Angaben
@@ -262,6 +271,7 @@
 | projects | `idx_projects_status_id` | status_id | Status-Filter |
 | projects | `idx_projects_created_at` | created_at | Zeitbasierte Sortierung |
 | projects | `idx_projects_client_name` | client_name (GIN) | Volltextsuche |
+| projects | `idx_projects_page_paths` | page_paths (GIN) | JSONB-Queries auf PNG-Pfade |
 | project_rooms | `idx_project_rooms_project_id` | project_id | JOIN-Performance |
 | ai_extractions | `idx_ai_extractions_project_id` | project_id | JOIN-Performance |
 | ai_extractions | `idx_ai_extractions_extracted_at` | extracted_at | Zeitbasierte Queries |
@@ -331,6 +341,13 @@ ORDER BY extracted_at DESC
 LIMIT 1;
 ```
 
+### PDF und PNG-Pfade eines Projekts
+```sql
+SELECT id, pdf_path, page_paths
+FROM projects
+WHERE id = :project_id;
+```
+
 ---
 
 ## Wichtige Hinweise für KI-Assistenten
@@ -348,6 +365,8 @@ LIMIT 1;
 6. **Budget-Einheit:** EUR, nicht formatiert (ohne € oder Tausendertrennzeichen)
 
 7. **Flächen-Einheit:** m², als DECIMAL gespeichert
+
+8. **Dateipfade:** `pdf_path` und `page_paths` zeigen auf lokale Dateien im `/files/archive/` Ordner - Pfade sind relativ zum Projekt-Root oder absolut
 
 ---
 

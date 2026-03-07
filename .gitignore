@@ -50,10 +50,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# Dependencies
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
+# Dependencies (Lockfiles NICHT ignorieren - für deterministische Builds)
+# package-lock.json → sollte committet werden
+# yarn.lock → sollte committet werden
+# pnpm-lock.yaml → sollte committet werden
 
 # IDE
 .idea/
@@ -78,6 +78,10 @@ next-env.d.ts
 # Testing
 coverage/
 .nyc_output/
+
+# ArchiScribe - Benutzeruploads (nicht committen!)
+files/inbox/
+files/archiv/
 
 # Misc
 *.bak

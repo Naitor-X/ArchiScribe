@@ -55,8 +55,9 @@ CREATE TABLE projects (
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     status_id VARCHAR(50) NOT NULL DEFAULT 'raw_extracted' REFERENCES project_statuses(id),
 
-    -- Datei-Referenz
-    original_file_url VARCHAR(500),
+    -- Datei-Referenzen
+    pdf_path VARCHAR(500),                          -- Pfad zum Original-PDF im Archiv
+    page_paths JSONB,                               -- Array mit PNG-Pfaden pro Seite
 
     -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -150,6 +151,7 @@ CREATE INDEX idx_projects_tenant_id ON projects(tenant_id);
 CREATE INDEX idx_projects_status_id ON projects(status_id);
 CREATE INDEX idx_projects_created_at ON projects(created_at);
 CREATE INDEX idx_projects_client_name ON projects USING gin(to_tsvector('german', client_name));
+CREATE INDEX idx_projects_page_paths ON projects USING gin(page_paths);
 
 -- Project Rooms
 CREATE INDEX idx_project_rooms_project_id ON project_rooms(project_id);
