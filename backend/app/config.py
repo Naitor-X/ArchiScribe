@@ -1,3 +1,4 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +14,11 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_model: str = "qwen/qwen2.5-vl-72b-instruct"
+
+    # Datei-Management
+    files_base_path: str = "./files"
+    max_file_size_mb: int = 50  # Maximale PDF-Größe in MB
+    test_tenant_id: str = "00000000-0000-0000-0000-000000000001"
 
     # Anwendung
     app_env: str = "development"
@@ -31,6 +37,36 @@ class Settings(BaseSettings):
             f"postgresql://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
+
+    @property
+    def files_path(self) -> Path:
+        """Basis-Pfad für alle Datei-Operationen."""
+        return Path(self.files_base_path).resolve()
+
+    @property
+    def inbox_path(self) -> Path:
+        """Pfad für eingehende PDFs (Watchdog überwacht diesen Ordner)."""
+        return self.files_path / "inbox"
+
+    @property
+    def processing_path(self) -> Path:
+        """Temporärer Arbeitsbereich für laufende Verarbeitungen."""
+        return self.files_path / "processing"
+
+    @property
+    def archive_path(self) -> Path:
+        """Dauerhafte Ablage für verarbeitete Dateien."""
+        return self.files_path / "archive"
+
+    @property
+    def error_path(self) -> Path:
+        """Ablage für fehlgeschlagene Verarbeitungen."""
+        return self.files_path / "error"
+
+    @property
+    def max_file_size_bytes(self) -> int:
+        """Maximale Dateigröße in Bytes."""
+        return self.max_file_size_mb * 1024 * 1024
 
 
 settings = Settings()
