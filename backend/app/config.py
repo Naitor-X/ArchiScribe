@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     app_env: str = "development"
     log_level: str = "INFO"
 
+    # API-Auth
+    dev_api_key: str = "sk-tenant-00000000-0000-0000-0000-000000000001-a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

@@ -5,6 +5,7 @@ FastAPI-App mit:
 - File-Watcher für PDF-Überwachung
 - Processing-Pipeline für automatisierte KI-Extraktion
 - API-Endpunkte für Status-Abfragen und manuelle Re-Trigger
+- API-Key-Authentifizierung für Frontend-Integration
 """
 
 import uuid
@@ -17,10 +18,20 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.config import settings
+from app.database import init_db_pool, close_db_pool
 from app.exceptions import ArchiScribeException, archiscribe_exception_handler
 from app.file_utils import ensure_directories
 from app.file_watcher import start_file_watcher, stop_file_watcher
 from app.logger import logger
+from app.middleware.auth import APIKeyMiddleware
+from app.middleware.error_handler import (
+    APIError,
+    api_error_handler,
+    generic_exception_handler,
+    http_exception_handler,
+    pydantic_validation_handler,
+)
+from app.middleware.request_logging import RequestLoggingMiddleware
 from app.processing import (
     ProcessingJob,
     ProcessingResult,
@@ -39,6 +50,10 @@ async def lifespan(app):
     # === Startup ===
     logger.info(f"ArchiScribe startet (Umgebung: {settings.app_env})")
 
+    # Datenbank-Pool initialisieren
+    await init_db_pool()
+    logger.info("Datenbank-Pool initialisiert")
+
     # Ordnerstruktur sicherstellen
     ensure_directories()
 
@@ -47,6 +62,13 @@ async def lifespan(app):
         max_concurrent=settings.max_concurrent_processing,
         on_job_complete=handle_job_complete,
     )
+
+    # Test-API-Key für Development sicherstellen
+    if settings.app_env == "development":
+        from app.services.api_keys import ensure_test_api_key
+
+        test_key = await ensure_test_api_key()
+        logger.info(f"Test-API-Key bereit: {test_key[:20]}...")
 
     # Dateiüberwachung starten
     start_file_watcher(on_pdf_detected=handle_new_pdf)
@@ -60,6 +82,7 @@ async def lifespan(app):
 
     stop_file_watcher()
     await shutdown_processing()
+    await close_db_pool()
 
     logger.info("ArchiScribe beendet")
 
@@ -67,11 +90,26 @@ async def lifespan(app):
 app = FastAPI(
     title="ArchiScribe API",
     description="KI-gestützte Verarbeitung von Grundlagenformularen für Architekturbüros",
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 
+# === Exception Handler ===
 app.add_exception_handler(ArchiScribeException, archiscribe_exception_handler)
+app.add_exception_handler(APIError, api_error_handler)
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(Exception, generic_exception_handler)
+
+# Pydantic Validation Error Handler
+from pydantic import ValidationError as PydanticValidationError
+app.add_exception_handler(PydanticValidationError, pydantic_validation_handler)
+
+# === Middleware ===
+# Request-Logging (zuerst, damit alle Requests geloggt werden)
+app.add_middleware(RequestLoggingMiddleware)
+
+# API-Key-Authentifizierung
+app.add_middleware(APIKeyMiddleware)
 
 
 # === Callbacks ===
@@ -134,7 +172,7 @@ async def health_check() -> dict[str, Any]:
 
     return {
         "status": "ok",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "umgebung": settings.app_env,
         "queue": {
             "active_jobs": len(queue._active_jobs),
@@ -142,6 +180,62 @@ async def health_check() -> dict[str, Any]:
             "completed_jobs": len(queue._completed_jobs),
             "max_concurrent": queue.max_concurrent,
         },
+    }
+
+
+# === Tenant-Endpunkte ===
+
+
+class TenantInfoResponse(BaseModel):
+    """Response-Modell für Tenant-Info."""
+
+    tenant_id: str
+    key_name: str | None = None
+
+
+@app.get("/api/v1/tenants/me", response_model=TenantInfoResponse, tags=["Tenant"])
+async def get_tenant_info() -> TenantInfoResponse:
+    """
+    Gibt Informationen zum aktuellen Tenant zurück.
+
+    Erfordert authentifizierten API-Key.
+    """
+    from app.middleware.auth import get_current_tenant
+
+    tenant = get_current_tenant()
+    if not tenant:
+        raise HTTPException(
+            status_code=401,
+            detail="Nicht authentifiziert",
+        )
+
+    return TenantInfoResponse(
+        tenant_id=str(tenant["tenant_id"]),
+        key_name=tenant.get("key_name"),
+    )
+
+
+@app.get("/api/v1/auth/test", tags=["Auth"])
+async def test_auth() -> dict[str, Any]:
+    """
+    Testet die API-Key-Authentifizierung.
+
+    Gibt Tenant-Informationen zurück, wenn der API-Key gültig ist.
+    """
+    from app.middleware.auth import get_current_tenant
+
+    tenant = get_current_tenant()
+    if not tenant:
+        raise HTTPException(
+            status_code=401,
+            detail="Nicht authentifiziert",
+        )
+
+    return {
+        "authenticated": True,
+        "tenant_id": str(tenant["tenant_id"]),
+        "key_id": str(tenant.get("key_id")),
+        "key_name": tenant.get("key_name"),
     }
 
 

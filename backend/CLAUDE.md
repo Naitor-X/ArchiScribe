@@ -59,16 +59,32 @@
 - Modul: `app/processing.py`
 - API-Endpunkte: `/jobs`, `/queue/stats`, `/jobs/retrigger`
 
+### Hauptmodul 2: API-Endpoints für Frontend-Integration
+
+#### 2.1 Auth & Middleware ✅ (2026-03-07)
+- API-Key-Authentifizierung mit SHA-256 Hash
+- Bearer Token und X-API-Key Header Support
+- Tenant-Extraktion aus API-Key
+- X-Tenant-ID Header Validierung (Mismatch Detection)
+- Unified Error Handler mit Standard-Format
+- Request-Logging mit Verarbeitungszeit
+- Development-Modus mit dev_api_key Fallback
+- Module: `app/middleware/auth.py`, `app/middleware/error_handler.py`, `app/middleware/request_logging.py`
+- Service: `app/services/api_keys.py`
+- Test: `test_auth_middleware.py` (7/7 Tests bestanden)
+
 ## API-Endpunkte
 
-| Endpoint | Methode | Beschreibung |
-|----------|---------|--------------|
-| `/health` | GET | System-Status + Queue-Statistiken |
-| `/queue/stats` | GET | Processing-Queue Statistiken |
-| `/jobs` | GET | Aktive Jobs auflisten |
-| `/jobs/{job_id}` | GET | Job-Status abfragen |
-| `/jobs/retrigger` | POST | Manuelle Neuverarbeitung |
-| `/projects/{project_id}` | GET | Projekt mit Details laden |
+| Endpoint | Methode | Beschreibung | Auth |
+|----------|---------|--------------|------|
+| `/health` | GET | System-Status + Queue-Statistiken | Nein |
+| `/queue/stats` | GET | Processing-Queue Statistiken | Ja |
+| `/jobs` | GET | Aktive Jobs auflisten | Ja |
+| `/jobs/{job_id}` | GET | Job-Status abfragen | Ja |
+| `/jobs/retrigger` | POST | Manuelle Neuverarbeitung | Ja |
+| `/projects/{project_id}` | GET | Projekt mit Details laden | Ja |
+| `/api/v1/tenants/me` | GET | Aktuelle Tenant-Infos | Ja |
+| `/api/v1/auth/test` | GET | Authentifizierung testen | Ja |
 
 ## Test-PDF
 
@@ -85,3 +101,14 @@
 ### JSON aus KI-Response extrahieren
 - KI kann JSON in Markdown-Code-Blöcken zurückgeben
 - Funktion `_extract_json_from_response()` behandelt verschiedene Formate
+
+### API-Key-Format
+- Format: `sk-tenant-{tenant_id}-{random_32_chars}`
+- In DB wird nur SHA-256 Hash gespeichert
+- Key-Prefix (erste 20 Zeichen) für schnelle Identifikation
+- Development-Modus nutzt `dev_api_key` als Fallback
+
+### Test-API-Key
+```
+sk-tenant-00000000-0000-0000-0000-000000000001-a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6
+```

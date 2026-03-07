@@ -114,30 +114,58 @@ HTTP 200 OK
 
 ## Untermodule
 
-### 2.1 Auth & Middleware
+### 2.1 Auth & Middleware ✅
 
 **Ziel:** API-Key-Validierung, Tenant-Extraktion, Error-Handling
 
 | Task | Beschreibung | Status |
 |------|--------------|--------|
-| 2.1.1 | API-Key Middleware implementieren | ⬜ |
-| 2.1.2 | Tenant-Extraktion (Header + API-Key-Fallback) | ⬜ |
-| 2.1.3 | Unified Error Handler mit Standard-Format | ⬜ |
-| 2.1.4 | Request-Logging für Debugging | ⬜ |
-| 2.1.5 | Rate-Limiting (optional, später) | ⬜ |
+| 2.1.1 | `api_keys` Tabelle zu `database/schema.sql` hinzufügen | ✅ |
+| 2.1.2 | API-Key Middleware implementieren (Hash-Vergleich) | ✅ |
+| 2.1.3 | Tenant-Extraktion (Header + API-Key-Fallback) | ✅ |
+| 2.1.4 | Unified Error Handler mit Standard-Format | ✅ |
+| 2.1.5 | Request-Logging für Debugging | ✅ |
+| 2.1.6 | Test-API-Key für Entwicklung erstellen | ✅ |
+| 2.1.7 | Rate-Limiting (optional, später) | ⏸️ |
 
 **Abhängigkeiten:** Keine
 
-**Module:**
-- `app/middleware/auth.py` - API-Key-Validierung
-- `app/middleware/tenant.py` - Tenant-Extraktion
-- `app/middleware/error_handler.py` - Error-Responses
+**Implementierte Module:**
+- `database/schema.sql` - Tabelle `api_keys` hinzugefügt
+- `app/middleware/__init__.py` - Modul-Exports
+- `app/middleware/auth.py` - API-Key-Validierung mit SHA-256 Hash
+- `app/middleware/tenant.py` - TenantContext-Klasse
+- `app/middleware/error_handler.py` - Unified Error-Responses
+- `app/middleware/request_logging.py` - Request-Logging Middleware
+- `app/services/__init__.py` - Service-Exports
+- `app/services/api_keys.py` - Key-Generierung & Validierung
+- `app/config.py` - dev_api_key für Development
+- `app/main.py` - Middleware-Integration
+
+**Test-API-Key (Development):**
+```
+sk-tenant-00000000-0000-0000-0000-000000000001-a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6
+```
+
+**Getestete Szenarien:**
+- Health-Check ohne Auth (✓)
+- Auth mit gültigem API-Key via X-API-Key Header (✓)
+- Auth mit Bearer Token (✓)
+- Ablehnung bei ungültigem API-Key (✓)
+- Development-Fallback ohne API-Key (✓)
+- Tenant-Info Endpunkt (✓)
+- Einheitliches Fehler-Format (✓)
+- Tenant-Mismatch Detection (✓)
+
+**Hinweis:** Keine Migration nötig - MVP-Phase, keine Echtdaten vorhanden.
 
 **Headers:**
 ```
 X-API-Key: sk-tenant-001-abc123...
 X-Tenant-ID: tenant-001  (optional, falls nicht im API-Key enthalten)
 ```
+
+**Implementiert am:** 2026-03-07
 
 ---
 
@@ -341,12 +369,53 @@ PyJWT>=2.8.0           # Alternative für JWT-basierte Tokens
 
 ---
 
+## API-Keys
+
+### Format
+```
+sk-tenant-{tenant_id}-{random_32_chars}
+```
+
+**Beispiel:**
+```
+sk-tenant-550e8400-e29b-41d4-a716-446655440000-a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+```
+
+### Datenbank-Tabelle (neu)
+
+```sql
+CREATE TABLE api_keys (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    key_hash VARCHAR(128) NOT NULL,           -- SHA-256 Hash des API-Keys
+    key_prefix VARCHAR(20) NOT NULL,          -- "sk-tenant-550e8..." für Identifikation
+    name VARCHAR(100),                         -- "Produktion", "Test", etc.
+    is_active BOOLEAN DEFAULT true,
+    last_used_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP,                      -- Optional: Ablaufdatum
+
+    UNIQUE(key_prefix)
+);
+
+CREATE INDEX idx_api_keys_tenant ON api_keys(tenant_id);
+CREATE INDEX idx_api_keys_prefix ON api_keys(key_prefix);
+```
+
+**Sicherheit:**
+- API-Key wird nur bei Erstellung einmalig angezeigt
+- In DB wird nur SHA-256 Hash gespeichert
+- Key-Prefix für Identifikation vor dem Hash-Vergleich
+
+---
+
 ## Offene Fragen
 
-- [ ] API-Key-Format definieren (z.B. `sk-tenant-{id}-{random}`)
+- [x] ~~API-Key-Format definieren~~ → `sk-tenant-{tenant_id}-{random}`
+- [x] ~~Sollen API-Keys in DB oder Environment gespeichert werden?~~ → In DB mit Hash
 - [ ] Token-Ablaufzeit für Signed URLs (15 min okay?)
-- [ ] Sollen API-Keys in DB oder Environment gespeichert werden?
 - [ ] Rate-Limiting bereits implementieren?
+- [ ] API-Key-Management-Endpoints (Create/List/Revoke)?
 
 ---
 

@@ -182,6 +182,28 @@ CREATE TRIGGER update_projects_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================
+-- API-KEYS (für Frontend-Authentifizierung)
+-- ============================================================================
+
+CREATE TABLE api_keys (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    key_hash VARCHAR(128) NOT NULL,           -- SHA-256 Hash des API-Keys
+    key_prefix VARCHAR(20) NOT NULL,          -- "sk-tenant-550e8..." für Identifikation
+    name VARCHAR(100),                         -- "Produktion", "Test", etc.
+    is_active BOOLEAN DEFAULT true,
+    last_used_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP WITH TIME ZONE,      -- Optional: Ablaufdatum
+
+    UNIQUE(key_prefix)
+);
+
+CREATE INDEX idx_api_keys_tenant ON api_keys(tenant_id);
+CREATE INDEX idx_api_keys_prefix ON api_keys(key_prefix);
+CREATE INDEX idx_api_keys_active ON api_keys(is_active);
+
+-- ============================================================================
 -- VIEWS (optional für häufige Abfragen)
 -- ============================================================================
 
