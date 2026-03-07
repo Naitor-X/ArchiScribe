@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+
+# Umgebung
+.env
+.env.local
+*.local
+
+# Hochgeladene Dateien (User-Daten)
+files/inbox/*
+files/processing/*
+files/archive/*
+files/error/*
+!files/inbox/.gitkeep
+!files/processing/.gitkeep
+!files/archive/.gitkeep
+!files/error/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
