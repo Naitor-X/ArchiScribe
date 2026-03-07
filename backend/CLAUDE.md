@@ -50,6 +50,26 @@
 - Modul: `app/database.py`
 - Test: `test_db_integration.py`
 
+#### 1.7 Workflow-Orchestrierung ✅ (2026-03-07)
+- Processing-Pipeline: PDF → KI → Mapping → DB → Archiv
+- Async Processing-Queue mit konfigurierbaren Workern
+- Status-Tracking mit Callbacks
+- Fehlerbehandlung mit Error-Archivierung
+- Manuelle Re-Trigger via API
+- Modul: `app/processing.py`
+- API-Endpunkte: `/jobs`, `/queue/stats`, `/jobs/retrigger`
+
+## API-Endpunkte
+
+| Endpoint | Methode | Beschreibung |
+|----------|---------|--------------|
+| `/health` | GET | System-Status + Queue-Statistiken |
+| `/queue/stats` | GET | Processing-Queue Statistiken |
+| `/jobs` | GET | Aktive Jobs auflisten |
+| `/jobs/{job_id}` | GET | Job-Status abfragen |
+| `/jobs/retrigger` | POST | Manuelle Neuverarbeitung |
+| `/projects/{project_id}` | GET | Projekt mit Details laden |
+
 ## Test-PDF
 
 **Original:** `/files/Form2.pdf` (4 Seiten, ~1MB)

@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     max_file_size_mb: int = 50  # Maximale PDF-Größe in MB
     test_tenant_id: str = "00000000-0000-0000-0000-000000000001"
 
+    # Processing
+    max_concurrent_processing: int = 3  # Maximale parallele PDF-Verarbeitungen
+
     # Anwendung
     app_env: str = "development"
     log_level: str = "INFO"

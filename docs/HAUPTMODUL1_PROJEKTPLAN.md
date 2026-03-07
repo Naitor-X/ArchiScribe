@@ -236,19 +236,39 @@ Automatisierte Verarbeitung von Grundlagenformularen:
 
 ---
 
-### 1.7 Workflow-Orchestrierung
+### 1.7 Workflow-Orchestrierung ✅
 
 **Ziel:** Alle Komponenten zu einem automatisierten Prozess verbinden
 
 | Task | Beschreibung | Status |
 |------|--------------|--------|
-| 1.7.1 | Main-Processing-Pipeline implementieren | ⬜ |
-| 1.7.2 | Status-Updates während Verarbeitung | ⬜ |
-| 1.7.3 | Fehlerbehandlung mit aussagekräftigen Logs | ⬜ |
-| 1.7.4 | Manuelle Re-Trigger-Möglichkeit | ⬜ |
-| 1.7.5 | Processing-Queue für mehrere gleichzeitige Dateien | ⬜ |
+| 1.7.1 | Main-Processing-Pipeline implementieren | ✅ `app/processing.py` |
+| 1.7.2 | Status-Updates während Verarbeitung | ✅ `ProcessingStatus` Enum + Callbacks |
+| 1.7.3 | Fehlerbehandlung mit aussagekräftigen Logs | ✅ Error-Handling mit Archivierung in `/files/error/` |
+| 1.7.4 | Manuelle Re-Trigger-Möglichkeit | ✅ `POST /jobs/retrigger` Endpoint |
+| 1.7.5 | Processing-Queue für mehrere gleichzeitige Dateien | ✅ `ProcessingQueue` mit Async-Workern |
 
 **Abhängigkeiten:** 1.1 - 1.6
+
+**Implementiert:** 2026-03-07
+
+**Modul:** `app/processing.py`
+
+**Features:**
+- `ProcessingPipeline` Klasse - Orchestriert alle Verarbeitungsschritte
+- `ProcessingQueue` mit async Workern (konfigurierbare Parallelität)
+- `ProcessingJob` mit Status-Tracking und Callbacks
+- `POST /jobs/retrigger` für manuelle Neuverarbeitung
+- `GET /jobs/{job_id}` für Status-Abfragen
+- `GET /queue/stats` für Queue-Statistiken
+
+**Verarbeitungs-Schritte:**
+1. **CONVERTING** - PDF zu PNG konvertieren
+2. **EXTRACTING** - KI-Extraktion via OpenRouter
+3. **MAPPING** - Daten-Mapping & Validierung
+4. **SAVING** - In PostgreSQL speichern
+5. **ARCHIVING** - Dateien ins Archiv verschieben
+6. **COMPLETED** / **FAILED**
 
 ---
 
@@ -267,8 +287,10 @@ Automatisierte Verarbeitung von Grundlagenformularen:
     │                                   │
     │                                   └──> 1.6 Datenbank-Integration ✅
     │
-    └──────────────────────────────────────────> 1.7 Workflow-Orchestrierung ⬜ (NÄCHSTER SCHRITT)
+    └──────────────────────────────────────────> 1.7 Workflow-Orchestrierung ✅
 ```
+
+**Hauptmodul 1 komplett! 🎉**
 
 ---
 
@@ -287,8 +309,9 @@ Automatisierte Verarbeitung von Grundlagenformularen:
 
 ## Nächste Schritte
 
-1. **Aktuell:** 1.7 Workflow-Orchestrierung implementieren
-2. Alle Komponenten zu automatisierter Pipeline verbinden
+1. **Hauptmodul 1 komplett** - PDF-Verarbeitung & KI-Extraktion vollständig implementiert
+2. **Test:** End-to-End Test mit echter PDF im Inbox-Ordner
+3. **Optional:** Frontend für Architekten zur Datenverifizierung
 
 ---
 
@@ -304,4 +327,4 @@ Automatisierte Verarbeitung von Grundlagenformularen:
 
 *Erstellt: 2026-03-07*
 *Letztes Update: 2026-03-07*
-*Status: In Entwicklung - 1.1 bis 1.6 abgeschlossen, 1.7 als nächster Schritt*
+*Status: ✅ Vollständig implementiert*
