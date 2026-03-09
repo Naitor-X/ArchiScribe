@@ -8,6 +8,7 @@ FastAPI-App mit:
 - API-Key-Authentifizierung für Frontend-Integration
 """
 
+import re
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -160,6 +161,59 @@ def handle_job_complete(result: ProcessingResult) -> None:
         logger.error(
             f"Job {result.job_id} fehlgeschlagen: {result.error_message}"
         )
+
+
+# === Hilfsfunktionen ===
+
+
+def sanitize_path(file_path: str) -> Path:
+    """
+    Validiert einen Dateipfad gegen Path-Traversal-Angriffe.
+
+    Stellt sicher, dass der Pfad:
+    - Nur erlaubte Zeichen enthält
+    - Innerhalb von inbox_path bleibt
+    - Auf eine existierende Datei verweist
+
+    Args:
+        file_path: Der zu validierende Pfad (absolut oder relativ zu inbox_path)
+
+    Returns:
+        Der aufgelöste und validierte Pfad
+
+    Raises:
+        HTTPException: Bei ungültigem Pfad oder Path-Traversal-Versuch
+    """
+    # Nur erlaubte Zeichen (Buchstaben, Zahlen, Unterstrich, Bindestrich, Punkt, Slash/Backslash)
+    if not re.match(r'^[\w\-\.\/\\]+$', str(file_path)):
+        raise HTTPException(
+            status_code=400,
+            detail="Ungültiger Pfad: Enthält nicht erlaubte Zeichen"
+        )
+
+    # Pfad auflösen und prüfen, ob er innerhalb von inbox_path bleibt
+    path = Path(file_path)
+    if path.is_absolute():
+        resolved = path.resolve()
+    else:
+        resolved = (settings.inbox_path / path).resolve()
+
+    # Sicherstellen, dass der finale Pfad innerhalb von inbox_path liegt
+    inbox_resolved = settings.inbox_path.resolve()
+    if not str(resolved).startswith(str(inbox_resolved)):
+        raise HTTPException(
+            status_code=400,
+            detail="Pfad außerhalb des erlaubten Bereichs"
+        )
+
+    # Prüfen, ob die Datei existiert
+    if not resolved.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Datei nicht gefunden: {file_path}"
+        )
+
+    return resolved
 
 
 # === API-Endpunkte ===
@@ -390,18 +444,8 @@ async def retrigger_processing(request: ReTriggerRequest) -> JobStatusResponse:
     Returns:
         Der erstellte Job
     """
-    # Pfad auflösen
-    file_path = Path(request.file_path)
-
-    if not file_path.is_absolute():
-        # Relativer Pfad - in inbox suchen
-        file_path = settings.inbox_path / request.file_path
-
-    if not file_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Datei nicht gefunden: {request.file_path}",
-        )
+    # Pfad validieren und auflösen (schützt vor Path-Traversal)
+    file_path = sanitize_path(request.file_path)
 
     # Validierung
     if file_path.suffix.lower() != ".pdf":
