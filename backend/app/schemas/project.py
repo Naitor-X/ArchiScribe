@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, AliasChoices
 
 
 # === Projekt-Schemas ===
@@ -19,7 +19,11 @@ class ProjectBase(BaseModel):
     address: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
-    date: Optional[date] = None
+    form_date: Optional[date] = Field(
+        None,
+        validation_alias=AliasChoices("date", "form_date"),
+        serialization_alias="date"
+    )
 
     # Grundstück
     plot_location: Optional[str] = None

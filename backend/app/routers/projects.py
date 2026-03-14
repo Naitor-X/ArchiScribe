@@ -80,7 +80,7 @@ async def list_projects_endpoint(
                 address=p.get("address"),
                 phone=p.get("phone"),
                 email=p.get("email"),
-                date=p.get("date"),
+                form_date=p.get("date"),
                 plot_location=p.get("plot_location"),
                 plot_size_m2=p.get("plot_size_m2"),
                 landowner=p.get("landowner"),
@@ -181,7 +181,7 @@ async def get_project_endpoint(project_id: UUID) -> ProjectWithDetails:
         address=project.get("address"),
         phone=project.get("phone"),
         email=project.get("email"),
-        date=project.get("date"),
+        form_date=project.get("date"),
         plot_location=project.get("plot_location"),
         plot_size_m2=project.get("plot_size_m2"),
         landowner=project.get("landowner"),
@@ -226,8 +226,8 @@ async def update_project_endpoint(
     """
     tenant_id = _get_tenant_id()
 
-    # Nur nicht-None Werte übernehmen
-    update_data = updates.model_dump(exclude_unset=True)
+    # Nur nicht-None Werte übernehmen, Aliases für DB-Kompatibilität verwenden
+    update_data = updates.model_dump(exclude_unset=True, by_alias=True)
 
     if not update_data:
         raise HTTPException(status_code=400, detail="Keine Änderungen angegeben")
@@ -347,8 +347,8 @@ async def update_room_endpoint(
     """
     tenant_id = _get_tenant_id()
 
-    # Nur nicht-None Werte übernehmen
-    update_data = updates.model_dump(exclude_unset=True)
+    # Nur nicht-None Werte übernehmen, Aliases für DB-Kompatibilität verwenden
+    update_data = updates.model_dump(exclude_unset=True, by_alias=True)
 
     if not update_data:
         raise HTTPException(status_code=400, detail="Keine Änderungen angegeben")

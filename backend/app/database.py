@@ -27,6 +27,22 @@ logger = logging.getLogger(__name__)
 _pool: asyncpg.Pool | None = None
 
 
+def _json_serializable(obj: Any) -> Any:
+    """Konvertiert nicht-JSON-serialisierbare Typen."""
+    if isinstance(obj, Decimal):
+        return float(obj)
+    if isinstance(obj, UUID):
+        return str(obj)
+    if isinstance(obj, (date, datetime)):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
+def _to_json(obj: Any) -> str:
+    """Serialisiert ein Objekt zu JSON mit Unterstützung für Decimal, UUID, date."""
+    return json.dumps(obj, default=_json_serializable)
+
+
 class DatabaseError(Exception):
     """Fehler bei Datenbankoperationen."""
     pass
@@ -479,7 +495,7 @@ async def update_project_status(
                 """,
                 project_id,
                 changed_by_user_id,
-                json.dumps(changes),
+                _to_json(changes),
             )
 
             logger.info(
@@ -636,7 +652,7 @@ async def update_project(
                 """,
                 project_id,
                 changed_by_user_id,
-                json.dumps(changes),
+                _to_json(changes),
             )
 
             logger.info(f"Projekt {project_id} aktualisiert: {len(changes)} Felder geändert")
