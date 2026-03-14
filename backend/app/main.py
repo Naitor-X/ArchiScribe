@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.config import settings
+from app.database import init_db_pool, close_db_pool
 from app.exceptions import ArchiScribeException, archiscribe_exception_handler
 from app.file_utils import ensure_directories
 from app.file_watcher import start_file_watcher, stop_file_watcher
@@ -31,6 +32,7 @@ from app.processing import (
     init_processing,
     shutdown_processing,
 )
+from app.routers import projects_router, tenants_router
 
 
 @asynccontextmanager
@@ -38,6 +40,10 @@ async def lifespan(app):
     """FastAPI Lifespan-Context-Manager."""
     # === Startup ===
     logger.info(f"ArchiScribe startet (Umgebung: {settings.app_env})")
+
+    # Datenbank-Pool initialisieren
+    await init_db_pool()
+    logger.info("Datenbank-Pool initialisiert")
 
     # Ordnerstruktur sicherstellen
     ensure_directories()
@@ -60,6 +66,7 @@ async def lifespan(app):
 
     stop_file_watcher()
     await shutdown_processing()
+    await close_db_pool()
 
     logger.info("ArchiScribe beendet")
 
@@ -67,11 +74,15 @@ async def lifespan(app):
 app = FastAPI(
     title="ArchiScribe API",
     description="KI-gestützte Verarbeitung von Grundlagenformularen für Architekturbüros",
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 
 app.add_exception_handler(ArchiScribeException, archiscribe_exception_handler)
+
+# API-Router einbinden
+app.include_router(projects_router, prefix="/api/v1")
+app.include_router(tenants_router, prefix="/api/v1")
 
 
 # === Callbacks ===
@@ -355,37 +366,3 @@ async def retrigger_processing(request: ReTriggerRequest) -> JobStatusResponse:
         error_message=job.error_message,
         warnings=job.warnings,
     )
-
-
-# === Projekt-Endpunkte ===
-
-
-@app.get("/projects/{project_id}", tags=["Projekte"])
-async def get_project(project_id: str) -> dict[str, Any]:
-    """
-    Lädt ein Projekt mit allen Details.
-
-    Enthält:
-    - Projektdaten
-    - Raumprogramm
-    - Neueste KI-Extraktion
-    """
-    from app.database import get_project_by_id
-
-    project_uuid = uuid.UUID(project_id)
-    tenant_uuid = uuid.UUID(settings.test_tenant_id)
-
-    project = await get_project_by_id(project_uuid, tenant_uuid)
-
-    if not project:
-        raise HTTPException(status_code=404, detail=f"Projekt {project_id} nicht gefunden")
-
-    # UUIDs zu Strings konvertieren für JSON-Serialisierung
-    result = {}
-    for key, value in project.items():
-        if isinstance(value, uuid.UUID):
-            result[key] = str(value)
-        else:
-            result[key] = value
-
-    return result
