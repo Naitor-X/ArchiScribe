@@ -19,7 +19,7 @@ Minimales, funktionales Frontend für Architekturbüros zur Verifizierung von KI
 ## Projektstruktur
 
 ```
-frontend/
+/frontend/vanilla
 ├── index.html          # Projektliste (Landing Page)
 ├── project.html        # Projektdetail + Verifizierung
 ├── css/
@@ -35,7 +35,7 @@ frontend/
 ## Implementierungsschritte
 
 ### Schritt 1: Grundstruktur & FastAPI-Integration
-- [ ] `frontend/` Ordner anlegen
+- [ x ] `/frontend/vanilla` Ordner anlegen
 - [ ] FastAPI: `StaticFiles` unter `/` mounten
 - [ ] API-Client (`api.js`) mit API-Key-Header und Basis-URL
 
