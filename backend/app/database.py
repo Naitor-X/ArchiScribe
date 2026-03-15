@@ -27,6 +27,22 @@ logger = logging.getLogger(__name__)
 _pool: asyncpg.Pool | None = None
 
 
+def _json_serializable(obj: Any) -> Any:
+    """Konvertiert nicht-JSON-serialisierbare Typen."""
+    if isinstance(obj, Decimal):
+        return float(obj)
+    if isinstance(obj, UUID):
+        return str(obj)
+    if isinstance(obj, (date, datetime)):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
+def _to_json(obj: Any) -> str:
+    """Serialisiert ein Objekt zu JSON mit Unterstützung für Decimal, UUID, date."""
+    return json.dumps(obj, default=_json_serializable)
+
+
 class DatabaseError(Exception):
     """Fehler bei Datenbankoperationen."""
     pass
@@ -479,13 +495,394 @@ async def update_project_status(
                 """,
                 project_id,
                 changed_by_user_id,
-                json.dumps(changes),
+                _to_json(changes),
             )
 
             logger.info(
                 f"Projekt {project_id} Status geändert: {old_status} → {new_status}"
             )
             return True
+
+
+# === API-Funktionen ===
+
+
+async def list_projects(
+    tenant_id: UUID | str,
+    status_id: str | None = None,
+    search: str | None = None,
+    page: int = 1,
+    page_size: int = 20,
+) -> tuple[list[dict[str, Any]], int]:
+    """
+    Listet Projekte eines Mandanten mit Paginierung und Filterung.
+
+    Args:
+        tenant_id: Mandanten-ID
+        status_id: Optionaler Status-Filter
+        search: Optionaler Suchbegriff (client_name, address)
+        page: Seitennummer (1-basiert)
+        page_size: Anzahl pro Seite
+
+    Returns:
+        Tuple aus (Projekt-Liste, Gesamtanzahl)
+    """
+    if isinstance(tenant_id, str):
+        tenant_id = UUID(tenant_id)
+
+    async with get_connection() as conn:
+        # Basis-Query
+        base_query = "FROM projects WHERE tenant_id = $1"
+        params = [tenant_id]
+        param_count = 1
+
+        # Status-Filter
+        if status_id:
+            param_count += 1
+            base_query += f" AND status_id = ${param_count}"
+            params.append(status_id)
+
+        # Such-Filter
+        if search:
+            param_count += 1
+            base_query += f" AND (client_name ILIKE ${param_count} OR address ILIKE ${param_count})"
+            params.append(f"%{search}%")
+
+        # Gesamtanzahl
+        count_query = f"SELECT COUNT(*) {base_query}"
+        total = await conn.fetchval(count_query, *params)
+
+        # Projekte laden
+        param_count += 1
+        offset = (page - 1) * page_size
+        data_query = f"""
+            SELECT id, tenant_id, status_id, client_name, address, 
+                   plot_location, project_type, budget, created_at, updated_at
+            {base_query}
+            ORDER BY created_at DESC
+            LIMIT ${param_count} OFFSET {offset}
+        """
+        params.append(page_size)
+
+        rows = await conn.fetch(data_query, *params)
+        projects = [dict(r) for r in rows]
+
+        return projects, total
+
+
+async def update_project(
+    project_id: UUID | str,
+    tenant_id: UUID | str,
+    updates: dict[str, Any],
+    changed_by_user_id: UUID | str | None = None,
+) -> dict[str, Any] | None:
+    """
+    Aktualisiert ein Projekt mit Audit-Trail.
+
+    Args:
+        project_id: Projekt-ID
+        tenant_id: Mandanten-ID
+        updates: Dictionary mit zu aktualisierenden Feldern
+        changed_by_user_id: Optional User-ID für Audit-Trail
+
+    Returns:
+        Aktualisiertes Projekt oder None wenn nicht gefunden
+    """
+    if isinstance(project_id, str):
+        project_id = UUID(project_id)
+    if isinstance(tenant_id, str):
+        tenant_id = UUID(tenant_id)
+    if isinstance(changed_by_user_id, str):
+        changed_by_user_id = UUID(changed_by_user_id)
+
+    pool = get_pool()
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # Altes Projekt laden
+            old_project = await conn.fetchrow(
+                "SELECT * FROM projects WHERE id = $1 AND tenant_id = $2",
+                project_id,
+                tenant_id,
+            )
+
+            if not old_project:
+                return None
+
+            # Changes für Audit-Trail vorbereiten
+            changes = {}
+            for key, new_value in updates.items():
+                old_value = old_project.get(key)
+                if old_value != new_value:
+                    changes[key] = {"old": old_value, "new": new_value}
+
+            if not changes:
+                # Keine Änderungen
+                return dict(old_project)
+
+            # Update durchführen
+            set_clauses = []
+            params = []
+            param_count = 0
+
+            for key, value in updates.items():
+                param_count += 1
+                set_clauses.append(f"{key} = ${param_count}")
+                params.append(_prepare_value(value))
+
+            param_count += 1
+            params.append(project_id)
+            param_count += 1
+            params.append(tenant_id)
+
+            update_query = f"""
+                UPDATE projects 
+                SET {', '.join(set_clauses)}
+                WHERE id = ${param_count - 1} AND tenant_id = ${param_count}
+                RETURNING *
+            """
+
+            updated_row = await conn.fetchrow(update_query, *params)
+
+            # History-Eintrag erstellen
+            await conn.execute(
+                """
+                INSERT INTO project_history (project_id, changed_by_user_id, changes)
+                VALUES ($1, $2, $3)
+                """,
+                project_id,
+                changed_by_user_id,
+                _to_json(changes),
+            )
+
+            logger.info(f"Projekt {project_id} aktualisiert: {len(changes)} Felder geändert")
+            return dict(updated_row)
+
+
+async def get_project_history(
+    project_id: UUID | str,
+    tenant_id: UUID | str,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """
+    Lädt die Änderungshistorie eines Projekts.
+
+    Args:
+        project_id: Projekt-ID
+        tenant_id: Mandanten-ID
+        limit: Maximale Anzahl Einträge
+
+    Returns:
+        Liste der Historien-Einträge
+    """
+    if isinstance(project_id, str):
+        project_id = UUID(project_id)
+    if isinstance(tenant_id, str):
+        tenant_id = UUID(tenant_id)
+
+    async with get_connection() as conn:
+        # Prüfen ob Projekt existiert
+        exists = await conn.fetchval(
+            "SELECT 1 FROM projects WHERE id = $1 AND tenant_id = $2",
+            project_id,
+            tenant_id,
+        )
+
+        if not exists:
+            return []
+
+        rows = await conn.fetch(
+            """
+            SELECT id, project_id, changed_by_user_id, changed_at, changes
+            FROM project_history
+            WHERE project_id = $1
+            ORDER BY changed_at DESC
+            LIMIT $2
+            """,
+            project_id,
+            limit,
+        )
+
+        return [dict(r) for r in rows]
+
+
+async def create_room(
+    project_id: UUID | str,
+    tenant_id: UUID | str,
+    room_data: dict[str, Any],
+) -> UUID | None:
+    """
+    Erstellt einen neuen Raum für ein Projekt.
+
+    Args:
+        project_id: Projekt-ID
+        tenant_id: Mandanten-ID
+        room_data: Raum-Daten
+
+    Returns:
+        UUID des erstellten Raums oder None wenn Projekt nicht gefunden
+    """
+    if isinstance(project_id, str):
+        project_id = UUID(project_id)
+    if isinstance(tenant_id, str):
+        tenant_id = UUID(tenant_id)
+
+    async with get_connection() as conn:
+        # Prüfen ob Projekt existiert
+        exists = await conn.fetchval(
+            "SELECT 1 FROM projects WHERE id = $1 AND tenant_id = $2",
+            project_id,
+            tenant_id,
+        )
+
+        if not exists:
+            return None
+
+        row = await conn.fetchrow(
+            """
+            INSERT INTO project_rooms (
+                project_id, room_type, quantity, size_m2, special_requirements
+            ) VALUES ($1, $2, $3, $4, $5)
+            RETURNING id
+            """,
+            project_id,
+            room_data["room_type"],
+            room_data.get("quantity", 1),
+            _prepare_value(room_data.get("size_m2")),
+            room_data.get("special_requirements"),
+        )
+
+        logger.info(f"Raum erstellt: {room_data['room_type']} für Projekt {project_id}")
+        return row["id"]
+
+
+async def update_room(
+    room_id: UUID | str,
+    project_id: UUID | str,
+    tenant_id: UUID | str,
+    updates: dict[str, Any],
+) -> dict[str, Any] | None:
+    """
+    Aktualisiert einen Raum.
+
+    Args:
+        room_id: Raum-ID
+        project_id: Projekt-ID
+        tenant_id: Mandanten-ID
+        updates: Zu aktualisierende Felder
+
+    Returns:
+        Aktualisierter Raum oder None wenn nicht gefunden
+    """
+    if isinstance(room_id, str):
+        room_id = UUID(room_id)
+    if isinstance(project_id, str):
+        project_id = UUID(project_id)
+    if isinstance(tenant_id, str):
+        tenant_id = UUID(tenant_id)
+
+    async with get_connection() as conn:
+        # Prüfen ob Raum zum Projekt und Tenant gehört
+        row = await conn.fetchrow(
+            """
+            SELECT pr.* FROM project_rooms pr
+            JOIN projects p ON pr.project_id = p.id
+            WHERE pr.id = $1 AND pr.project_id = $2 AND p.tenant_id = $3
+            """,
+            room_id,
+            project_id,
+            tenant_id,
+        )
+
+        if not row:
+            return None
+
+        # Update durchführen
+        set_clauses = []
+        params = []
+        param_count = 0
+
+        for key, value in updates.items():
+            if key in ["room_type", "quantity", "size_m2", "special_requirements"]:
+                param_count += 1
+                set_clauses.append(f"{key} = ${param_count}")
+                params.append(_prepare_value(value))
+
+        if not set_clauses:
+            return dict(row)
+
+        param_count += 1
+        params.append(room_id)
+
+        update_query = f"""
+            UPDATE project_rooms 
+            SET {', '.join(set_clauses)}
+            WHERE id = ${param_count}
+            RETURNING *
+        """
+
+        updated_row = await conn.fetchrow(update_query, *params)
+        logger.info(f"Raum {room_id} aktualisiert")
+        return dict(updated_row)
+
+
+async def delete_room(
+    room_id: UUID | str,
+    project_id: UUID | str,
+    tenant_id: UUID | str,
+) -> bool:
+    """
+    Löscht einen Raum.
+
+    Args:
+        room_id: Raum-ID
+        project_id: Projekt-ID
+        tenant_id: Mandanten-ID
+
+    Returns:
+        True wenn erfolgreich, False wenn nicht gefunden
+    """
+    if isinstance(room_id, str):
+        room_id = UUID(room_id)
+    if isinstance(project_id, str):
+        project_id = UUID(project_id)
+    if isinstance(tenant_id, str):
+        tenant_id = UUID(tenant_id)
+
+    async with get_connection() as conn:
+        # Löschen mit Join-Check
+        result = await conn.execute(
+            """
+            DELETE FROM project_rooms pr
+            USING projects p
+            WHERE pr.id = $1 
+              AND pr.project_id = $2 
+              AND p.id = pr.project_id 
+              AND p.tenant_id = $3
+            """,
+            room_id,
+            project_id,
+            tenant_id,
+        )
+
+        deleted = result == "DELETE 1"
+        if deleted:
+            logger.info(f"Raum {room_id} gelöscht")
+        return deleted
+
+
+async def list_tenants() -> list[dict[str, Any]]:
+    """
+    Listet alle Mandanten.
+
+    Returns:
+        Liste der Tenants
+    """
+    async with get_connection() as conn:
+        rows = await conn.fetch(
+            "SELECT id, name, created_at FROM tenants ORDER BY name"
+        )
+        return [dict(r) for r in rows]
 
 
 # === Lifecycle-Management für FastAPI ===

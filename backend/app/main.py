@@ -43,6 +43,7 @@ from app.processing import (
     init_processing,
     shutdown_processing,
 )
+from app.routers import projects_router, tenants_router
 
 
 @asynccontextmanager
@@ -111,6 +112,10 @@ app.add_middleware(RequestLoggingMiddleware)
 
 # API-Key-Authentifizierung
 app.add_middleware(APIKeyMiddleware)
+
+# API-Router einbinden
+app.include_router(projects_router, prefix="/api/v1")
+app.include_router(tenants_router, prefix="/api/v1")
 
 
 # === Callbacks ===
@@ -493,37 +498,3 @@ async def retrigger_processing(request: ReTriggerRequest) -> JobStatusResponse:
         error_message=job.error_message,
         warnings=job.warnings,
     )
-
-
-# === Projekt-Endpunkte ===
-
-
-@app.get("/projects/{project_id}", tags=["Projekte"])
-async def get_project(project_id: str) -> dict[str, Any]:
-    """
-    Lädt ein Projekt mit allen Details.
-
-    Enthält:
-    - Projektdaten
-    - Raumprogramm
-    - Neueste KI-Extraktion
-    """
-    from app.database import get_project_by_id
-
-    project_uuid = uuid.UUID(project_id)
-    tenant_uuid = uuid.UUID(settings.test_tenant_id)
-
-    project = await get_project_by_id(project_uuid, tenant_uuid)
-
-    if not project:
-        raise HTTPException(status_code=404, detail=f"Projekt {project_id} nicht gefunden")
-
-    # UUIDs zu Strings konvertieren für JSON-Serialisierung
-    result = {}
-    for key, value in project.items():
-        if isinstance(value, uuid.UUID):
-            result[key] = str(value)
-        else:
-            result[key] = value
-
-    return result
