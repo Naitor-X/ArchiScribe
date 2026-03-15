@@ -1,0 +1,206 @@
+/**
+ * Projektdetail-Logik
+ */
+
+// Projekt-ID aus URL
+const projectId = new URLSearchParams(window.location.search).get('id');
+
+if (!projectId) {
+    window.location.href = '/app/';
+}
+
+// Status-Labels
+const STATUS_LABELS = {
+    'raw_extracted': 'Rohdaten',
+    'needs_review': 'Prüfung erforderlich',
+    'verified_by_architect': 'Verifiziert'
+};
+
+// Enum-Optionen (aus Backend-Schema)
+const ENUM_OPTIONS = {
+    building_type: ['Neubau', 'Umbau', 'Erweiterung', 'Sanierung', 'Sonstiges'],
+    heating_type: ['Gas', 'Öl', 'Wärmepumpe', 'Fernwärme', 'Pellets', 'Sonstiges'],
+    topography: ['Ebene', 'Hanglage', 'Sonstiges'],
+    project_type: ['Einfamilienhaus', 'Doppelhaus', 'Reihenhaus', 'Mehrfamilienhaus', 'Sonstiges'],
+    construction_method: ['Massivbau', 'Holzbau', 'Hybrid', 'Sonstiges'],
+};
+
+// Formular-Daten sammeln (nur editierbare Felder)
+function collectFormData() {
+    const form = document.getElementById('project-form');
+    const formData = new FormData(form);
+    const data = {};
+
+    // Nur Felder, die im Formular existieren
+    for (const [key, value] of formData.entries()) {
+        // Checkboxen (nur development_plan)
+        if (key === 'development_plan') {
+            data[key] = value === 'on';
+        }
+        // Zahlen
+        else if (['budget', 'plot_size_m2'].includes(key)) {
+            data[key] = value ? parseFloat(value) : null;
+        }
+        // Strings
+        else {
+            data[key] = value || null;
+        }
+    }
+
+    // Checkboxen, die nicht angehakt sind, müssen explizit auf false gesetzt werden
+    const checkbox = document.getElementById('development_plan');
+    if (checkbox && !checkbox.checked) {
+        data['development_plan'] = false;
+    }
+
+    return data;
+}
+
+// Formular befüllen
+function populateForm(project) {
+    // Titel
+    document.getElementById('page-title').textContent = project.client_name || 'Projekt';
+
+    // Formularfelder (API-Feldnamen)
+    const fields = [
+        'client_name', 'address', 'phone', 'email',
+        'plot_location', 'plot_size_m2', 'landowner',
+        'topography', 'topography_other',
+        'development_plan', 'access_status',
+        'project_type', 'project_type_other',
+        'building_type', 'building_type_other',
+        'construction_method',
+        'heating_type', 'heating_type_other',
+        'budget', 'planned_start',
+        'own_contribution', 'own_contribution_details',
+        'accessibility', 'outdoor_area', 'materiality',
+        'notes'
+    ];
+
+    fields.forEach(field => {
+        const element = document.getElementById(field);
+        if (element) {
+            if (element.type === 'checkbox') {
+                element.checked = project[field] === true;
+            } else {
+                element.value = project[field] || '';
+            }
+        }
+    });
+
+    // Datum formatieren
+    if (project.form_date) {
+        const dateInput = document.getElementById('form_date');
+        if (dateInput) {
+            dateInput.value = project.form_date;
+        }
+    }
+
+    // Status anzeigen
+    const statusEl = document.getElementById('project-status');
+    statusEl.innerHTML = `<span class="badge badge-${project.status_id}">${STATUS_LABELS[project.status_id] || project.status_id}</span>`;
+
+    // Verifizieren-Button nur bei needs_review anzeigen
+    const verifyBtn = document.getElementById('verify-btn');
+    verifyBtn.style.display = project.status_id === 'needs_review' ? 'inline-flex' : 'none';
+
+    // Raumprogramm rendern
+    renderRooms(project.rooms || []);
+}
+
+// Enum-Selects befüllen
+function populateEnumSelects() {
+    for (const [field, options] of Object.entries(ENUM_OPTIONS)) {
+        const select = document.getElementById(field);
+        if (select) {
+            select.innerHTML = `
+                <option value="">Bitte wählen</option>
+                ${options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+            `;
+        }
+    }
+}
+
+// Raumprogramm rendern
+function renderRooms(rooms) {
+    const container = document.getElementById('rooms-container');
+
+    if (!rooms || rooms.length === 0) {
+        container.innerHTML = '<p class="loading">Keine Räume vorhanden</p>';
+        return;
+    }
+
+    container.innerHTML = `
+        <table class="room-table">
+            <thead>
+                <tr>
+                    <th>Raumtyp</th>
+                    <th>Fläche (m²)</th>
+                    <th>Anzahl</th>
+                    <th>Besondere Anforderungen</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${rooms.map(room => `
+                    <tr>
+                        <td>${room.room_type || '-'}</td>
+                        <td>${room.size_m2 || '-'}</td>
+                        <td>${room.quantity || 1}</td>
+                        <td>${room.special_requirements || '-'}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+// Fehler/Success anzeigen
+function showMessage(message, isError = false) {
+    const container = document.getElementById('message-container');
+    container.innerHTML = `<div class="${isError ? 'error' : 'success'}">${message}</div>`;
+    container.style.display = 'block';
+
+    setTimeout(() => {
+        container.style.display = 'none';
+    }, 3000);
+}
+
+// Projekt laden
+async function loadProject() {
+    try {
+        const project = await window.api.getProject(projectId);
+        populateForm(project);
+    } catch (error) {
+        showMessage(`Fehler beim Laden: ${error.message}`, true);
+    }
+}
+
+// Speichern
+async function saveProject() {
+    try {
+        const data = collectFormData();
+        await window.api.updateProject(projectId, data);
+        showMessage('Projekt erfolgreich gespeichert');
+    } catch (error) {
+        showMessage(`Fehler beim Speichern: ${error.message}`, true);
+    }
+}
+
+// Verifizieren
+async function verifyProject() {
+    try {
+        await window.api.updateProjectStatus(projectId, 'verified_by_architect');
+        showMessage('Projekt als verifiziert markiert');
+        loadProject(); // Neu laden für UI-Update
+    } catch (error) {
+        showMessage(`Fehler: ${error.message}`, true);
+    }
+}
+
+// Event-Listener
+document.getElementById('save-btn').addEventListener('click', saveProject);
+document.getElementById('verify-btn').addEventListener('click', verifyProject);
+
+// Initialisierung
+populateEnumSelects();
+loadProject();

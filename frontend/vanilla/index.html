@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArchiScribe - Projekte</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header class="header">
+        <h1>ArchiScribe - Grundlagenformulare</h1>
+    </header>
+
+    <main class="container">
+        <div id="error-container" style="display: none;"></div>
+
+        <div class="filter-bar">
+            <label for="status-filter">Status:</label>
+            <select id="status-filter">
+                <option value="all">Alle</option>
+                <option value="needs_review">Prüfung erforderlich</option>
+                <option value="verified_by_architect">Verifiziert</option>
+            </select>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Projektname</th>
+                        <th>Adresse</th>
+                        <th>Status</th>
+                        <th>Erstellt</th>
+                    </tr>
+                </thead>
+                <tbody id="project-list">
+                    <tr>
+                        <td colspan="4" class="loading">Lade Projekte...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <script src="js/api.js"></script>
+    <script src="js/list.js"></script>
+</body>
+</html>

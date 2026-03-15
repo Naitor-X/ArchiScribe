@@ -129,6 +129,8 @@ async def get_project_endpoint(project_id: UUID) -> ProjectWithDetails:
     - Raumprogramm
     - Neueste KI-Extraktion
     """
+    import json
+
     tenant_id = _get_tenant_id()
 
     project = await get_project_by_id(project_id, tenant_id)
@@ -154,17 +156,16 @@ async def get_project_endpoint(project_id: UUID) -> ProjectWithDetails:
     extraction = None
     if project.get("latest_extraction"):
         from app.schemas.project import AIExtractionResponse
-        import json
-        
+
         # JSON-Strings parsen falls nötig (asyncpg gibt JSONB als String zurück)
         raw_json = project["latest_extraction"]["raw_json"]
         if isinstance(raw_json, str):
             raw_json = json.loads(raw_json)
-        
+
         confidence_scores = project["latest_extraction"].get("confidence_scores")
         if isinstance(confidence_scores, str):
             confidence_scores = json.loads(confidence_scores)
-        
+
         extraction = AIExtractionResponse(
             id=project["latest_extraction"]["id"],
             project_id=project_id,
@@ -172,6 +173,11 @@ async def get_project_endpoint(project_id: UUID) -> ProjectWithDetails:
             confidence_scores=confidence_scores,
             extracted_at=project["latest_extraction"]["extracted_at"],
         )
+
+    # page_paths parsen (JSONB kann als String kommen)
+    page_paths = project.get("page_paths")
+    if isinstance(page_paths, str):
+        page_paths = json.loads(page_paths)
 
     return ProjectWithDetails(
         id=project["id"],
@@ -205,7 +211,7 @@ async def get_project_endpoint(project_id: UUID) -> ProjectWithDetails:
         materiality=project.get("materiality"),
         notes=project.get("notes"),
         pdf_path=project.get("pdf_path"),
-        page_paths=project.get("page_paths"),
+        page_paths=page_paths,
         created_at=project["created_at"],
         updated_at=project["updated_at"],
         rooms=rooms,
@@ -224,6 +230,8 @@ async def update_project_endpoint(
     Nur übergebene Felder werden aktualisiert.
     Erstellt automatisch einen Eintrag in der Projekt-Historie.
     """
+    import json
+
     tenant_id = _get_tenant_id()
 
     # Nur nicht-None Werte übernehmen, Aliases für DB-Kompatibilität verwenden
@@ -240,6 +248,14 @@ async def update_project_endpoint(
 
     if not updated_project:
         raise HTTPException(status_code=404, detail=f"Projekt {project_id} nicht gefunden")
+
+    # DB-Feld 'date' zu 'form_date' mappen
+    if "date" in updated_project:
+        updated_project["form_date"] = updated_project.pop("date")
+
+    # page_paths parsen (JSONB kann als String kommen)
+    if "page_paths" in updated_project and isinstance(updated_project["page_paths"], str):
+        updated_project["page_paths"] = json.loads(updated_project["page_paths"])
 
     return ProjectResponse(**updated_project)
 

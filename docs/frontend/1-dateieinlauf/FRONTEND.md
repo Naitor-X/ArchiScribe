@@ -35,22 +35,22 @@ Minimales, funktionales Frontend für Architekturbüros zur Verifizierung von KI
 ## Implementierungsschritte
 
 ### Schritt 1: Grundstruktur & FastAPI-Integration
-- [ x ] `/frontend/vanilla` Ordner anlegen
-- [ ] FastAPI: `StaticFiles` unter `/` mounten
-- [ ] API-Client (`api.js`) mit API-Key-Header und Basis-URL
+- [x] `/frontend/vanilla` Ordner anlegen
+- [x] FastAPI: `StaticFiles` unter `/app` mounten
+- [x] API-Client (`api.js`) mit API-Key-Header und Basis-URL
 
 ### Schritt 2: View 1 – Projektliste (`index.html`)
-- [ ] Tabelle: Projektname, Adresse, Status-Badge, Erstellungsdatum
-- [ ] Status-Filter (Dropdown: alle / `needs_review` / `verified_by_architect`)
-- [ ] Klick auf Zeile → navigiert zu `project.html?id={uuid}`
-- [ ] API-Endpunkt: `GET /projects`
+- [x] Tabelle: Projektname, Adresse, Status-Badge, Erstellungsdatum
+- [x] Status-Filter (Dropdown: alle / `needs_review` / `verified_by_architect`)
+- [x] Klick auf Zeile → navigiert zu `project.html?id={uuid}`
+- [x] API-Endpunkt: `GET /projects`
 
 ### Schritt 3: View 2 – Projektdetail (`project.html`)
-- [ ] Formular mit allen extrahierten KI-Daten (editierbar)
-- [ ] Raumprogramm als separate Sektion (Räume anzeigen)
-- [ ] Button "Speichern" → `PUT /projects/{id}`
-- [ ] Button "Als verifiziert markieren" → `PATCH /projects/{id}/status`
-- [ ] API-Endpunkt: `GET /projects/{id}`
+- [x] Formular mit allen extrahierten KI-Daten (editierbar)
+- [x] Raumprogramm als separate Sektion (Räume anzeigen)
+- [x] Button "Speichern" → `PUT /projects/{id}`
+- [x] Button "Als verifiziert markieren" → `PATCH /projects/{id}/status`
+- [x] API-Endpunkt: `GET /projects/{id}`
 
 ---
 
