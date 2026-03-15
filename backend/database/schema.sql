@@ -186,7 +186,7 @@ CREATE TRIGGER update_projects_updated_at
 -- ============================================================================
 
 CREATE TABLE api_keys (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     key_hash VARCHAR(128) NOT NULL,           -- SHA-256 Hash des API-Keys
     key_prefix VARCHAR(20) NOT NULL,          -- "sk-tenant-550e8..." für Identifikation

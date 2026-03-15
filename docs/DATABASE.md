@@ -20,7 +20,7 @@
 | Komponente | Technologie |
 |------------|-------------|
 | Datenbank | PostgreSQL |
-| Primärschlüssel | UUID (uuid-ossp) |
+| Primärschlüssel | UUID (uuid-ossp / gen_random_uuid) |
 | JSON-Speicherung | JSONB |
 | Zeitstempel | TIMESTAMP WITH TIME ZONE |
 
@@ -76,7 +76,7 @@
 
 | Spalte | Typ | Constraints | Beschreibung |
 |--------|-----|-------------|--------------|
-| `id` | UUID | PK, auto-generated | Eindeutige Mandanten-ID |
+| `id` | UUID | PK, DEFAULT uuid_generate_v4() | Eindeutige Mandanten-ID |
 | `name` | VARCHAR(255) | NOT NULL | Name des Architekturbüros |
 | `created_at` | TIMESTAMPTZ | DEFAULT NOW() | Erstellungszeitpunkt |
 
@@ -103,12 +103,13 @@
 
 | Spalte | Typ | Constraints | Beschreibung |
 |--------|-----|-------------|--------------|
-| `id` | UUID | PK, auto-generated | Eindeutige Projekt-ID |
-| `tenant_id` | UUID | FK → tenants, NOT NULL | Mandantenzuordnung |
-| `status_id` | VARCHAR(50) | FK → project_statuses, DEFAULT 'raw_extracted' | Projektstatus |
+| `id` | UUID | PK, DEFAULT uuid_generate_v4() | Eindeutige Projekt-ID |
+| `tenant_id` | UUID | FK → tenants, NOT NULL, ON DELETE CASCADE | Mandantenzuordnung |
+| `status_id` | VARCHAR(50) | FK → project_statuses, NOT NULL, DEFAULT 'raw_extracted' | Projektstatus |
 | `pdf_path` | VARCHAR(500) | - | Pfad zum Original-PDF im Archiv |
 | `page_paths` | JSONB | - | Array mit PNG-Pfaden pro Seite (für Frontend-Vorschau) |
 | `created_at` | TIMESTAMPTZ | DEFAULT NOW() | Erstellungszeitpunkt |
+| `updated_at` | TIMESTAMPTZ | DEFAULT NOW(), auto-update | Letzte Änderung |
 
 **Beispiel `page_paths` JSONB:**
 ```json
@@ -117,7 +118,6 @@
   "/files/archive/tenant_abc/project_123/page_002_20260307_143022.png"
 ]
 ```
-| `updated_at` | TIMESTAMPTZ | DEFAULT NOW(), auto-update | Letzte Änderung |
 
 #### Allgemeine Angaben
 
@@ -167,7 +167,7 @@
 | `notes` | TEXT | Sonstige Notizen |
 
 **Constraints:**
-- `valid_email`: E-Mail-Format-Validierung
+- `valid_email`: E-Mail-Format-Validierung (`email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'`)
 - `valid_budget`: Budget ≥ 0
 - `valid_plot_size`: Grundstücksgröße ≥ 0
 
@@ -177,7 +177,7 @@
 
 | Spalte | Typ | Constraints | Beschreibung |
 |--------|-----|-------------|--------------|
-| `id` | UUID | PK, auto-generated | Eindeutige Raum-ID |
+| `id` | UUID | PK, DEFAULT uuid_generate_v4() | Eindeutige Raum-ID |
 | `project_id` | UUID | FK → projects, NOT NULL, ON DELETE CASCADE | Projektzuordnung |
 | `room_type` | VARCHAR(100) | NOT NULL | Raumtyp (z.B. "Schlafzimmer", "Küche") |
 | `quantity` | INTEGER | DEFAULT 1, > 0 | Anzahl |
@@ -190,14 +190,14 @@
 
 | Spalte | Typ | Constraints | Beschreibung |
 |--------|-----|-------------|--------------|
-| `id` | UUID | PK, auto-generated | Eindeutige Extraktions-ID |
+| `id` | UUID | PK, DEFAULT uuid_generate_v4() | Eindeutige Extraktions-ID |
 | `project_id` | UUID | FK → projects, NOT NULL, ON DELETE CASCADE | Projektzuordnung |
 | `raw_json` | JSONB | NOT NULL | Exakter KI-Output (Original) |
 | `confidence_scores` | JSONB | - | Confidence-Score pro Feld |
 | `extracted_at` | TIMESTAMPTZ | DEFAULT NOW() | Zeitpunkt der Extraktion |
 
 **Verwendungszweck:**
-- Debugging bei Fehlernkennung
+- Debugging bei Fehlerekennung
 - Verbesserung der KI-Prompts
 - Qualitätsanalyse der OCR-Ergebnisse
 
@@ -207,7 +207,7 @@
 
 | Spalte | Typ | Constraints | Beschreibung |
 |--------|-----|-------------|--------------|
-| `id` | UUID | PK, auto-generated | Eindeutige Historien-ID |
+| `id` | UUID | PK, DEFAULT uuid_generate_v4() | Eindeutige Historien-ID |
 | `project_id` | UUID | FK → projects, NOT NULL, ON DELETE CASCADE | Projektzuordnung |
 | `changed_by_user_id` | UUID | - | User-ID des Ändernden |
 | `changed_at` | TIMESTAMPTZ | DEFAULT NOW() | Zeitpunkt der Änderung |
@@ -223,6 +223,27 @@
 
 ---
 
+### 7. `api_keys` - API-Schlüssel für Authentifizierung
+
+| Spalte | Typ | Constraints | Beschreibung |
+|--------|-----|-------------|--------------|
+| `id` | UUID | PK, DEFAULT gen_random_uuid() | Eindeutige Key-ID |
+| `tenant_id` | UUID | FK → tenants, NOT NULL, ON DELETE CASCADE | Mandantenzuordnung |
+| `key_hash` | VARCHAR(128) | NOT NULL | SHA-256 Hash des API-Keys |
+| `key_prefix` | VARCHAR(20) | NOT NULL, UNIQUE | Prefix für Identifikation (z.B. "sk-tenant-550e8...") |
+| `name` | VARCHAR(100) | - | Bezeichnung (z.B. "Produktion", "Test") |
+| `is_active` | BOOLEAN | DEFAULT true | Key aktiv? |
+| `last_used_at` | TIMESTAMPTZ | - | Letzte Verwendung |
+| `created_at` | TIMESTAMPTZ | DEFAULT NOW() | Erstellungszeitpunkt |
+| `expires_at` | TIMESTAMPTZ | - | Optional: Ablaufdatum |
+
+**API-Key-Format:**
+- Format: `sk-tenant-{tenant_id}-{random_32_chars}`
+- In DB wird nur SHA-256 Hash gespeichert
+- Key-Prefix (erste 20 Zeichen) für schnelle Identifikation
+
+---
+
 ## Entity-Relationship-Diagramm
 
 ```
@@ -233,17 +254,19 @@
 │ name            │
 │ created_at      │
 └────────┬────────┘
-         │ 1:N
-         ▼
-┌─────────────────┐       ┌─────────────────────┐
-│    projects     │       │  project_statuses   │
-├─────────────────┤       ├─────────────────────┤
-│ id (PK)         │──────►│ id (PK)             │
-│ tenant_id (FK)  │       │ label               │
-│ status_id (FK)  │       └─────────────────────┘
-│ ...             │
-└────────┬────────┘
          │
+    ┌────┴────┬──────────────┐
+    │ 1:N     │ 1:N          │
+    ▼         ▼              │
+┌─────────────┐ ┌────────────┴───┐
+│  projects   │ │    api_keys    │
+├─────────────┤ ├────────────────┤
+│ id (PK)     │ │ id (PK)        │
+│ tenant_id(FK)│ │ tenant_id (FK) │
+│ status_id(FK)│ │ key_hash       │
+│ ...         │ │ key_prefix (U) │
+└────────┬────┘ │ ...            │
+         │      └────────────────┘
     ┌────┴────┬──────────────┬───────────────┐
     │ 1:N     │ 1:N          │ 1:N           │
     ▼         ▼              ▼               ▼
@@ -259,24 +282,35 @@
 │special_ │ └───────────────┘ │ changes       │
 │requirements│                 └───────────────┘
 └─────────┘
+
+┌─────────────────────┐
+│  project_statuses   │
+├─────────────────────┤
+│ id (PK)             │◄──────────┐
+│ label               │           │ FK: projects.status_id
+└─────────────────────┘           │ (ON DELETE NO ACTION)
 ```
 
 ---
 
 ## Indizes
 
-| Tabelle | Index | Spalte(n) | Zweck |
-|---------|-------|-----------|-------|
-| projects | `idx_projects_tenant_id` | tenant_id | Multi-Tenant-Queries |
-| projects | `idx_projects_status_id` | status_id | Status-Filter |
-| projects | `idx_projects_created_at` | created_at | Zeitbasierte Sortierung |
-| projects | `idx_projects_client_name` | client_name (GIN) | Volltextsuche |
-| projects | `idx_projects_page_paths` | page_paths (GIN) | JSONB-Queries auf PNG-Pfade |
-| project_rooms | `idx_project_rooms_project_id` | project_id | JOIN-Performance |
-| ai_extractions | `idx_ai_extractions_project_id` | project_id | JOIN-Performance |
-| ai_extractions | `idx_ai_extractions_extracted_at` | extracted_at | Zeitbasierte Queries |
-| project_history | `idx_project_history_project_id` | project_id | JOIN-Performance |
-| project_history | `idx_project_history_changed_at` | changed_at | Audit-Trail |
+| Tabelle | Index | Spalte(n) | Typ | Zweck |
+|---------|-------|-----------|-----|-------|
+| projects | `idx_projects_tenant_id` | tenant_id | B-Tree | Multi-Tenant-Queries |
+| projects | `idx_projects_status_id` | status_id | B-Tree | Status-Filter |
+| projects | `idx_projects_created_at` | created_at | B-Tree | Zeitbasierte Sortierung |
+| projects | `idx_projects_client_name` | client_name | GIN (Full-Text) | Volltextsuche |
+| projects | `idx_projects_page_paths` | page_paths | GIN | JSONB-Queries auf PNG-Pfade |
+| project_rooms | `idx_project_rooms_project_id` | project_id | B-Tree | JOIN-Performance |
+| ai_extractions | `idx_ai_extractions_project_id` | project_id | B-Tree | JOIN-Performance |
+| ai_extractions | `idx_ai_extractions_extracted_at` | extracted_at | B-Tree | Zeitbasierte Queries |
+| project_history | `idx_project_history_project_id` | project_id | B-Tree | JOIN-Performance |
+| project_history | `idx_project_history_changed_at` | changed_at | B-Tree | Audit-Trail |
+| api_keys | `idx_api_keys_tenant` | tenant_id | B-Tree | Tenant-Filter |
+| api_keys | `idx_api_keys_prefix` | key_prefix | B-Tree | Key-Lookup |
+| api_keys | `idx_api_keys_active` | is_active | B-Tree | Aktive Keys filtern |
+| api_keys | `api_keys_key_prefix_key` | key_prefix | UNIQUE | Eindeutigkeit |
 
 ---
 
@@ -301,7 +335,17 @@ EXECUTE FUNCTION update_updated_at_column()
 Vereinfachte Sicht für häufige Abfragen mit Status-Label und Tenant-Name.
 
 ```sql
-SELECT p.*, ps.label AS status_label, t.name AS tenant_name
+SELECT
+    p.id, p.tenant_id, p.status_id, p.pdf_path, p.page_paths,
+    p.created_at, p.updated_at, p.client_name, p.address, p.phone,
+    p.email, p.date, p.plot_location, p.plot_size_m2, p.landowner,
+    p.topography, p.topography_other, p.development_plan, p.access_status,
+    p.project_type, p.project_type_other, p.building_type, p.building_type_other,
+    p.construction_method, p.heating_type, p.heating_type_other, p.budget,
+    p.planned_start, p.own_contribution, p.own_contribution_details,
+    p.accessibility, p.outdoor_area, p.materiality, p.notes,
+    ps.label AS status_label,
+    t.name AS tenant_name
 FROM projects p
 JOIN project_statuses ps ON p.status_id = ps.id
 JOIN tenants t ON p.tenant_id = t.id;
@@ -348,6 +392,16 @@ FROM projects
 WHERE id = :project_id;
 ```
 
+### API-Key validieren
+```sql
+SELECT ak.*, t.name as tenant_name
+FROM api_keys ak
+JOIN tenants t ON ak.tenant_id = t.id
+WHERE ak.key_prefix = :key_prefix
+  AND ak.is_active = true
+  AND (ak.expires_at IS NULL OR ak.expires_at > NOW());
+```
+
 ---
 
 ## Wichtige Hinweise für KI-Assistenten
@@ -360,13 +414,15 @@ WHERE id = :project_id;
 
 4. **KI-Daten:** `raw_json` in `ai_extractions` niemals verändern - nur für Debugging lesen
 
-5. **Löschverhalten:** `ON DELETE CASCADE` bei `project_rooms`, `ai_extractions`, `project_history` - Löschen eines Projekts entfernt alle abhängigen Daten
+5. **Löschverhalten:** `ON DELETE CASCADE` bei `project_rooms`, `ai_extractions`, `project_history`, `api_keys` - Löschen eines Projekts/Tenants entfernt alle abhängigen Daten
 
 6. **Budget-Einheit:** EUR, nicht formatiert (ohne € oder Tausendertrennzeichen)
 
 7. **Flächen-Einheit:** m², als DECIMAL gespeichert
 
 8. **Dateipfade:** `pdf_path` und `page_paths` zeigen auf lokale Dateien im `/files/archive/` Ordner - Pfade sind relativ zum Projekt-Root oder absolut
+
+9. **API-Key-Hash:** Nie den Klartext-Key speichern, nur SHA-256 Hash
 
 ---
 
@@ -385,9 +441,9 @@ WHERE id = :project_id;
 ```bash
 cd backend
 source venv/bin/activate
-python database/init_db.py
+python3 database/init_db.py
 ```
 
 ---
 
-*Stand: 2026-03-07*
+*Stand: 2026-03-15 (automatisch aus Datenbank generiert)*
