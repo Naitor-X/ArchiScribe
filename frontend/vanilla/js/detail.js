@@ -16,13 +16,21 @@ const STATUS_LABELS = {
     'verified_by_architect': 'Verifiziert'
 };
 
-// Enum-Optionen (aus Backend-Schema)
+// Enum-Optionen (aus Backend-Schema - exakt wie in database/schema.sql)
 const ENUM_OPTIONS = {
-    building_type: ['Neubau', 'Umbau', 'Erweiterung', 'Sanierung', 'Sonstiges'],
-    heating_type: ['Gas', 'Öl', 'Wärmepumpe', 'Fernwärme', 'Pellets', 'Sonstiges'],
-    topography: ['Ebene', 'Hanglage', 'Sonstiges'],
-    project_type: ['Einfamilienhaus', 'Doppelhaus', 'Reihenhaus', 'Mehrfamilienhaus', 'Sonstiges'],
-    construction_method: ['Massivbau', 'Holzbau', 'Hybrid', 'Sonstiges'],
+    // Grundstück
+    topography: ['eben', 'leichte Hanglage', 'starke Hanglage', 'Sonstiges'],
+    access_status: ['voll erschlossen', 'teilerschlossen', 'nicht erschlossen'],
+
+    // Vorstellungen / Ziele
+    project_type: ['Neubau', 'Bauen im Bestand', 'Umbau im Inneren', 'Sanierung/Modernis.', 'Zubau/Anbau', 'Aufstockung', 'noch unklar', 'Sonstiges'],
+    building_type: ['EFH', 'Doppelhaus', 'Reihenhaus', 'Mehrfamilienhaus', 'Sonstige'],
+    construction_method: ['Massivbau', 'Holzbau', 'noch offen'],
+    heating_type: ['Wärmepumpe', 'Gasheizung', 'Fernwärme', 'Holz/Pellets', 'Sonstige'],
+
+    // Besondere Hinweise
+    own_contribution: ['ja', 'nein', 'teilweise'],
+    accessibility: ['wichtig', 'optional', 'nicht relevant'],
 };
 
 // Formular-Daten sammeln (nur editierbare Felder)
