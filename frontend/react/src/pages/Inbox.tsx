@@ -1,13 +1,11 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useProjects } from '@/lib/queries'
 import { STATUS_LABELS, type ProjectStatus } from '@/types'
 
 function StatusBadge({ status }: { status: ProjectStatus }) {
   const colors: Record<ProjectStatus, string> = {
-    raw_extracted: 'bg-yellow-100 text-yellow-800',
     needs_review: 'bg-orange-100 text-orange-800',
-    verified_by_architect: 'bg-green-100 text-green-800',
+    aktiv: 'bg-green-100 text-green-800',
   }
 
   return (
@@ -26,24 +24,19 @@ function formatDate(dateString: string | null | undefined): string {
   })
 }
 
-export default function ProjectList() {
-  const [statusFilter, setStatusFilter] = useState<ProjectStatus | ''>('')
-  const { data, isLoading, error } = useProjects(statusFilter || null)
+export default function Inbox() {
+  // Zeige nur Projekte mit Status 'needs_review'
+  const { data, isLoading, error } = useProjects('needs_review')
 
   return (
     <div className="max-w-6xl mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Projekte</h1>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as ProjectStatus | '')}
-          className="border rounded-lg px-3 py-2 text-sm"
-        >
-          <option value="">Alle Status</option>
-          <option value="raw_extracted">Rohdaten</option>
-          <option value="needs_review">Prüfung erforderlich</option>
-          <option value="verified_by_architect">Verifiziert</option>
-        </select>
+        <div>
+          <h1 className="text-2xl font-bold">Inbox</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Neue Projekte, die noch nicht bearbeitet wurden
+          </p>
+        </div>
       </div>
 
       {error && (
@@ -80,7 +73,7 @@ export default function ProjectList() {
             ) : !data?.projects.length ? (
               <tr>
                 <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
-                  Keine Projekte gefunden
+                  Keine neuen Projekte in der Inbox
                 </td>
               </tr>
             ) : (
@@ -90,7 +83,7 @@ export default function ProjectList() {
                   className="hover:bg-gray-50 cursor-pointer"
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <Link to={`/projects/${project.id}`} className="text-blue-600 hover:underline">
+                    <Link to={`/inbox/${project.id}`} className="text-blue-600 hover:underline">
                       {project.client_name || '-'}
                     </Link>
                   </td>

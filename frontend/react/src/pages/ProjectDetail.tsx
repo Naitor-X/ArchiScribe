@@ -5,9 +5,8 @@ import { ENUM_OPTIONS, STATUS_LABELS, type ProjectStatus, type ProjectUpdate } f
 
 function StatusBadge({ status }: { status: ProjectStatus }) {
   const colors: Record<ProjectStatus, string> = {
-    raw_extracted: 'bg-yellow-100 text-yellow-800',
     needs_review: 'bg-orange-100 text-orange-800',
-    verified_by_architect: 'bg-green-100 text-green-800',
+    aktiv: 'bg-green-100 text-green-800',
   }
 
   return (
@@ -57,6 +56,9 @@ export default function ProjectDetail() {
 
   const [formData, setFormData] = useState<ProjectUpdate>({})
   const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null)
+
+  // Bestimme die Rückkehr-Route basierend auf dem Status
+  const backRoute = project?.status_id === 'needs_review' ? '/inbox' : '/projekte'
 
   useEffect(() => {
     if (project) {
@@ -112,8 +114,10 @@ export default function ProjectDetail() {
     if (!id) return
 
     try {
-      await updateStatus.mutateAsync({ id, status: 'verified_by_architect' })
-      setMessage({ text: 'Projekt als verifiziert markiert', isError: false })
+      await updateStatus.mutateAsync({ id, status: 'aktiv' })
+      setMessage({ text: 'Projekt als aktiv markiert', isError: false })
+      // Nach kurzer Verzögerung zur Projekte-Liste navigieren
+      setTimeout(() => navigate('/projekte'), 1500)
     } catch (err) {
       setMessage({ text: `Fehler: ${(err as Error).message}`, isError: true })
     }
@@ -146,8 +150,8 @@ export default function ProjectDetail() {
     <div className="max-w-4xl mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <button onClick={() => navigate('/')} className="text-blue-600 hover:underline mb-2">
-            ← Zurück zur Liste
+          <button onClick={() => navigate(backRoute)} className="text-blue-600 hover:underline mb-2">
+            ← Zurück zur {project.status_id === 'needs_review' ? 'Inbox' : 'Projektliste'}
           </button>
           <h1 className="text-2xl font-bold">{project.client_name || 'Projekt'}</h1>
         </div>
@@ -159,7 +163,7 @@ export default function ProjectDetail() {
               disabled={updateStatus.isPending}
               className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
             >
-              Verifizieren
+              Aktivieren
             </button>
           )}
         </div>
@@ -480,7 +484,7 @@ export default function ProjectDetail() {
         <div className="flex justify-end gap-4">
           <button
             type="button"
-            onClick={() => navigate('/')}
+            onClick={() => navigate(backRoute)}
             className="px-4 py-2 text-gray-700 hover:text-gray-900"
           >
             Abbrechen

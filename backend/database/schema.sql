@@ -42,9 +42,8 @@ CREATE TABLE project_statuses (
 
 -- Default-Status einfügen
 INSERT INTO project_statuses (id, label) VALUES
-    ('raw_extracted', 'KI-Rohextraktion'),
     ('needs_review', 'Überprüfung erforderlich'),
-    ('verified_by_architect', 'Vom Architekten verifiziert');
+    ('aktiv', 'Aktives Projekt');
 
 -- -----------------------------------------------------------------------------
 -- 3. projects (Das eigentliche Grundlagenformular)
@@ -53,7 +52,7 @@ CREATE TABLE projects (
     -- Primärschlüssel und Referenzen
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    status_id VARCHAR(50) NOT NULL DEFAULT 'raw_extracted' REFERENCES project_statuses(id),
+    status_id VARCHAR(50) NOT NULL DEFAULT 'needs_review' REFERENCES project_statuses(id),
 
     -- Datei-Referenzen
     pdf_path VARCHAR(500),                          -- Pfad zum Original-PDF im Archiv

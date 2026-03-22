@@ -1,10 +1,9 @@
 // Projektstatus
-export type ProjectStatus = 'raw_extracted' | 'needs_review' | 'verified_by_architect'
+export type ProjectStatus = 'needs_review' | 'aktiv'
 
 export const STATUS_LABELS: Record<ProjectStatus, string> = {
-  raw_extracted: 'Rohdaten',
   needs_review: 'Prüfung erforderlich',
-  verified_by_architect: 'Verifiziert',
+  aktiv: 'Aktiv',
 }
 
 // Enum-Optionen (aus Backend-Schema)

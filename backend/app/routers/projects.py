@@ -192,9 +192,8 @@ async def update_status_endpoint(
     Ändert den Status eines Projekts.
 
     Erlaubte Status:
-    - raw_extracted: KI-Rohextraktion
     - needs_review: Überprüfung erforderlich
-    - verified_by_architect: Vom Architekten verifiziert
+    - aktiv: Aktives Projekt
     """
     tenant_id = _get_tenant_id()
 
