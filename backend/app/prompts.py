@@ -17,8 +17,11 @@ WICHTIGE REGELN:
 5. Bei handschriftlichen Zahlen: EUR-Beträge ohne Währungssymbol, Flächen in m²
 
 CHECKBOXEN:
-- Eine leere Checkbox (☐) bedeutet: diese Option ist NICHT gewählt → ignorieren
-- Eine angekreuzte Checkbox (☑, ☒, oder handschriftliches Kreuz/Haken in der Box) bedeutet: diese Option IST gewählt
+- Aufbau im Formular: [CHECKBOX] TEXT (z.B. "[x] Holzbau" oder "[ ] Massivbau")
+- Die Checkbox ist LINKS, der zugehörige Text ist RECHTS daneben
+- NUR der TEXT neben einer ANGEKREUZTEN Checkbox (☑, ☒, X, oder Haken IN der Box) ist der gültige Wert
+- Text neben einer LEEREN Checkbox (☐, leeres Quadrat) wird IGNORIERT
+- BEISPIEL: "[ ] Massivbau  [x] Holzbau" → Ergebnis: "Holzbau" (nicht "Massivbau"!)
 - Bei Mehrfachauswahl (z.B. mehrere Projektarten angekreuzt): nimm den zuerst angekreuzten Wert
 - Wenn unklar ob eine Checkbox angekreuzt ist, setze null
 

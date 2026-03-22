@@ -1,5 +1,5 @@
 /**
- * Projektlisten-Logik
+ * Projektlisten-Logik mit Caching und Debouncing
  */
 
 // Status-Labels für Anzeige
@@ -8,6 +8,13 @@ const STATUS_LABELS = {
     'needs_review': 'Prüfung erforderlich',
     'verified_by_architect': 'Verifiziert'
 };
+
+// Cache für Projekte (Session-Storage)
+const CACHE_KEY = 'archiscribe_projects_cache';
+const CACHE_TTL = 30 * 1000; // 30 Sekunden
+
+// Debounce-Timer
+let debounceTimer = null;
 
 // Status-Badge generieren
 function statusBadge(status) {
@@ -23,6 +30,35 @@ function formatDate(dateString) {
         month: '2-digit',
         year: 'numeric'
     });
+}
+
+// Cache lesen
+function getCache(statusFilter) {
+    try {
+        const cached = sessionStorage.getItem(`${CACHE_KEY}_${statusFilter}`);
+        if (!cached) return null;
+
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp > CACHE_TTL) {
+            sessionStorage.removeItem(`${CACHE_KEY}_${statusFilter}`);
+            return null;
+        }
+        return data;
+    } catch {
+        return null;
+    }
+}
+
+// Cache schreiben
+function setCache(statusFilter, data) {
+    try {
+        sessionStorage.setItem(`${CACHE_KEY}_${statusFilter}`, JSON.stringify({
+            data,
+            timestamp: Date.now()
+        }));
+    } catch {
+        // SessionStorage voll oder nicht verfügbar
+    }
 }
 
 // Projektliste rendern
@@ -55,9 +91,18 @@ function showError(message) {
     container.style.display = 'block';
 }
 
-// Projekte laden
-async function loadProjects() {
+// Projekte laden (mit Cache)
+async function loadProjects(forceRefresh = false) {
     const statusFilter = document.getElementById('status-filter').value;
+
+    // Cache prüfen
+    if (!forceRefresh) {
+        const cached = getCache(statusFilter);
+        if (cached) {
+            renderProjects(cached);
+            return;
+        }
+    }
 
     try {
         document.getElementById('project-list').innerHTML = `
@@ -67,8 +112,11 @@ async function loadProjects() {
         `;
 
         const response = await window.api.getProjects(statusFilter);
-        // API gibt {projects: [...], total: n, ...} zurück
         const projects = response.projects || [];
+
+        // Cache aktualisieren
+        setCache(statusFilter, projects);
+
         renderProjects(projects);
     } catch (error) {
         showError(`Fehler beim Laden: ${error.message}`);
@@ -76,8 +124,14 @@ async function loadProjects() {
     }
 }
 
-// Event-Listener
-document.getElementById('status-filter').addEventListener('change', loadProjects);
+// Debounced Load für Filter-Änderungen
+function debouncedLoad() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => loadProjects(), 150);
+}
+
+// Event-Listener mit Debouncing
+document.getElementById('status-filter').addEventListener('change', debouncedLoad);
 
 // Initial laden
 loadProjects();

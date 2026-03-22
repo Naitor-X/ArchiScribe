@@ -1,5 +1,5 @@
 /**
- * Projektdetail-Logik
+ * Projektdetail-Logik mit Caching
  */
 
 // Projekt-ID aus URL
@@ -8,6 +8,10 @@ const projectId = new URLSearchParams(window.location.search).get('id');
 if (!projectId) {
     window.location.href = '/app/';
 }
+
+// Cache-Konfiguration
+const CACHE_KEY = 'archiscribe_project_cache';
+const CACHE_TTL = 60 * 1000; // 60 Sekunden
 
 // Status-Labels
 const STATUS_LABELS = {
@@ -33,29 +37,63 @@ const ENUM_OPTIONS = {
     accessibility: ['wichtig', 'optional', 'nicht relevant'],
 };
 
+// Cache lesen
+function getProjectCache() {
+    try {
+        const cached = sessionStorage.getItem(`${CACHE_KEY}_${projectId}`);
+        if (!cached) return null;
+
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp > CACHE_TTL) {
+            sessionStorage.removeItem(`${CACHE_KEY}_${projectId}`);
+            return null;
+        }
+        return data;
+    } catch {
+        return null;
+    }
+}
+
+// Cache schreiben
+function setProjectCache(data) {
+    try {
+        sessionStorage.setItem(`${CACHE_KEY}_${projectId}`, JSON.stringify({
+            data,
+            timestamp: Date.now()
+        }));
+    } catch {
+        // SessionStorage voll oder nicht verfügbar
+    }
+}
+
+// Cache invalidieren
+function invalidateProjectCache() {
+    try {
+        sessionStorage.removeItem(`${CACHE_KEY}_${projectId}`);
+        // Auch Listen-Cache invalidieren
+        sessionStorage.removeItem('archiscribe_projects_cache_all');
+        sessionStorage.removeItem('archiscribe_projects_cache_raw_extracted');
+        sessionStorage.removeItem('archiscribe_projects_cache_needs_review');
+        sessionStorage.removeItem('archiscribe_projects_cache_verified_by_architect');
+    } catch {}
+}
+
 // Formular-Daten sammeln (nur editierbare Felder)
 function collectFormData() {
     const form = document.getElementById('project-form');
     const formData = new FormData(form);
     const data = {};
 
-    // Nur Felder, die im Formular existieren
     for (const [key, value] of formData.entries()) {
-        // Checkboxen (nur development_plan)
         if (key === 'development_plan') {
             data[key] = value === 'on';
-        }
-        // Zahlen
-        else if (['budget', 'plot_size_m2'].includes(key)) {
+        } else if (['budget', 'plot_size_m2'].includes(key)) {
             data[key] = value ? parseFloat(value) : null;
-        }
-        // Strings
-        else {
+        } else {
             data[key] = value || null;
         }
     }
 
-    // Checkboxen, die nicht angehakt sind, müssen explizit auf false gesetzt werden
     const checkbox = document.getElementById('development_plan');
     if (checkbox && !checkbox.checked) {
         data['development_plan'] = false;
@@ -66,10 +104,8 @@ function collectFormData() {
 
 // Formular befüllen
 function populateForm(project) {
-    // Titel
     document.getElementById('page-title').textContent = project.client_name || 'Projekt';
 
-    // Formularfelder (API-Feldnamen)
     const fields = [
         'client_name', 'address', 'phone', 'email',
         'plot_location', 'plot_size_m2', 'landowner',
@@ -96,7 +132,6 @@ function populateForm(project) {
         }
     });
 
-    // Datum formatieren
     if (project.form_date) {
         const dateInput = document.getElementById('form_date');
         if (dateInput) {
@@ -104,15 +139,12 @@ function populateForm(project) {
         }
     }
 
-    // Status anzeigen
     const statusEl = document.getElementById('project-status');
     statusEl.innerHTML = `<span class="badge badge-${project.status_id}">${STATUS_LABELS[project.status_id] || project.status_id}</span>`;
 
-    // Verifizieren-Button nur bei needs_review anzeigen
     const verifyBtn = document.getElementById('verify-btn');
     verifyBtn.style.display = project.status_id === 'needs_review' ? 'inline-flex' : 'none';
 
-    // Raumprogramm rendern
     renderRooms(project.rooms || []);
 }
 
@@ -173,10 +205,20 @@ function showMessage(message, isError = false) {
     }, 3000);
 }
 
-// Projekt laden
-async function loadProject() {
+// Projekt laden (mit Cache)
+async function loadProject(forceRefresh = false) {
+    // Cache prüfen
+    if (!forceRefresh) {
+        const cached = getProjectCache();
+        if (cached) {
+            populateForm(cached);
+            return;
+        }
+    }
+
     try {
         const project = await window.api.getProject(projectId);
+        setProjectCache(project);
         populateForm(project);
     } catch (error) {
         showMessage(`Fehler beim Laden: ${error.message}`, true);
@@ -187,7 +229,12 @@ async function loadProject() {
 async function saveProject() {
     try {
         const data = collectFormData();
-        await window.api.updateProject(projectId, data);
+        const updated = await window.api.updateProject(projectId, data);
+
+        // Cache aktualisieren
+        setProjectCache(updated);
+        invalidateProjectCache(); // Listen-Cache invalidieren
+
         showMessage('Projekt erfolgreich gespeichert');
     } catch (error) {
         showMessage(`Fehler beim Speichern: ${error.message}`, true);
@@ -198,8 +245,12 @@ async function saveProject() {
 async function verifyProject() {
     try {
         await window.api.updateProjectStatus(projectId, 'verified_by_architect');
+
+        // Cache invalidieren
+        invalidateProjectCache();
+
         showMessage('Projekt als verifiziert markiert');
-        loadProject(); // Neu laden für UI-Update
+        loadProject(true); // Neu laden für UI-Update
     } catch (error) {
         showMessage(`Fehler: ${error.message}`, true);
     }

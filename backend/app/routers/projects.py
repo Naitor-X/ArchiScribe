@@ -17,6 +17,7 @@ from app.database import (
     update_room,
 )
 from app.schemas.project import (
+    ProjectListItem,
     ProjectListResponse,
     ProjectResponse,
     ProjectUpdate,
@@ -68,50 +69,11 @@ async def list_projects_endpoint(
         page_size=page_size,
     )
 
-    # Konvertiere für Response
-    project_responses = []
-    for p in projects:
-        project_responses.append(
-            ProjectResponse(
-                id=p["id"],
-                tenant_id=p["tenant_id"],
-                status_id=p["status_id"],
-                client_name=p.get("client_name"),
-                address=p.get("address"),
-                phone=p.get("phone"),
-                email=p.get("email"),
-                form_date=p.get("date"),
-                plot_location=p.get("plot_location"),
-                plot_size_m2=p.get("plot_size_m2"),
-                landowner=p.get("landowner"),
-                topography=p.get("topography"),
-                topography_other=p.get("topography_other"),
-                development_plan=p.get("development_plan"),
-                access_status=p.get("access_status"),
-                project_type=p.get("project_type"),
-                project_type_other=p.get("project_type_other"),
-                building_type=p.get("building_type"),
-                building_type_other=p.get("building_type_other"),
-                construction_method=p.get("construction_method"),
-                heating_type=p.get("heating_type"),
-                heating_type_other=p.get("heating_type_other"),
-                budget=p.get("budget"),
-                planned_start=p.get("planned_start"),
-                own_contribution=p.get("own_contribution"),
-                own_contribution_details=p.get("own_contribution_details"),
-                accessibility=p.get("accessibility"),
-                outdoor_area=p.get("outdoor_area"),
-                materiality=p.get("materiality"),
-                notes=p.get("notes"),
-                pdf_path=p.get("pdf_path"),
-                page_paths=p.get("page_paths"),
-                created_at=p["created_at"],
-                updated_at=p["updated_at"],
-            )
-        )
+    # Effiziente Konvertierung mit ProjectListItem (nur 5 Felder)
+    project_items = [ProjectListItem(**p) for p in projects]
 
     return ProjectListResponse(
-        projects=project_responses,
+        projects=project_items,
         total=total,
         page=page,
         page_size=page_size,
@@ -138,82 +100,44 @@ async def get_project_endpoint(project_id: UUID) -> ProjectWithDetails:
     if not project:
         raise HTTPException(status_code=404, detail=f"Projekt {project_id} nicht gefunden")
 
-    # Räume konvertieren
-    rooms = []
-    for r in project.get("rooms", []):
-        rooms.append(
-            RoomResponse(
-                id=r["id"],
-                project_id=project_id,
-                room_type=r["room_type"],
-                quantity=r.get("quantity", 1),
-                size_m2=r.get("size_m2"),
-                special_requirements=r.get("special_requirements"),
-            )
-        )
+    # Räume aus project entfernen und konvertieren
+    rooms_data = project.pop("rooms", [])
+    rooms = [RoomResponse(project_id=project_id, **r) for r in rooms_data]
 
     # AI-Extraktion konvertieren
     extraction = None
-    if project.get("latest_extraction"):
+    raw_extraction = project.pop("latest_extraction", None)
+    if raw_extraction:
         from app.schemas.project import AIExtractionResponse
 
-        # JSON-Strings parsen falls nötig (asyncpg gibt JSONB als String zurück)
-        raw_json = project["latest_extraction"]["raw_json"]
+        raw_json = raw_extraction["raw_json"]
         if isinstance(raw_json, str):
             raw_json = json.loads(raw_json)
 
-        confidence_scores = project["latest_extraction"].get("confidence_scores")
-        if isinstance(confidence_scores, str):
-            confidence_scores = json.loads(confidence_scores)
+        confidence = raw_extraction.get("confidence_scores")
+        if isinstance(confidence, str):
+            confidence = json.loads(confidence)
 
         extraction = AIExtractionResponse(
-            id=project["latest_extraction"]["id"],
+            id=raw_extraction["id"],
             project_id=project_id,
             raw_json=raw_json,
-            confidence_scores=confidence_scores,
-            extracted_at=project["latest_extraction"]["extracted_at"],
+            confidence_scores=confidence,
+            extracted_at=raw_extraction["extracted_at"],
         )
 
     # page_paths parsen (JSONB kann als String kommen)
-    page_paths = project.get("page_paths")
+    page_paths = project.pop("page_paths", None)
     if isinstance(page_paths, str):
         page_paths = json.loads(page_paths)
 
+    # DB-Feld 'date' zu 'form_date' für Response
+    if "date" in project:
+        project["form_date"] = project.pop("date")
+
     return ProjectWithDetails(
-        id=project["id"],
-        tenant_id=project["tenant_id"],
-        status_id=project["status_id"],
-        client_name=project.get("client_name"),
-        address=project.get("address"),
-        phone=project.get("phone"),
-        email=project.get("email"),
-        form_date=project.get("date"),
-        plot_location=project.get("plot_location"),
-        plot_size_m2=project.get("plot_size_m2"),
-        landowner=project.get("landowner"),
-        topography=project.get("topography"),
-        topography_other=project.get("topography_other"),
-        development_plan=project.get("development_plan"),
-        access_status=project.get("access_status"),
-        project_type=project.get("project_type"),
-        project_type_other=project.get("project_type_other"),
-        building_type=project.get("building_type"),
-        building_type_other=project.get("building_type_other"),
-        construction_method=project.get("construction_method"),
-        heating_type=project.get("heating_type"),
-        heating_type_other=project.get("heating_type_other"),
-        budget=project.get("budget"),
-        planned_start=project.get("planned_start"),
-        own_contribution=project.get("own_contribution"),
-        own_contribution_details=project.get("own_contribution_details"),
-        accessibility=project.get("accessibility"),
-        outdoor_area=project.get("outdoor_area"),
-        materiality=project.get("materiality"),
-        notes=project.get("notes"),
-        pdf_path=project.get("pdf_path"),
+        **project,
         page_paths=page_paths,
-        created_at=project["created_at"],
-        updated_at=project["updated_at"],
         rooms=rooms,
         latest_extraction=extraction,
     )
@@ -234,7 +158,6 @@ async def update_project_endpoint(
 
     tenant_id = _get_tenant_id()
 
-    # Nur nicht-None Werte übernehmen, Aliases für DB-Kompatibilität verwenden
     update_data = updates.model_dump(exclude_unset=True, by_alias=True)
 
     if not update_data:
@@ -253,8 +176,8 @@ async def update_project_endpoint(
     if "date" in updated_project:
         updated_project["form_date"] = updated_project.pop("date")
 
-    # page_paths parsen (JSONB kann als String kommen)
-    if "page_paths" in updated_project and isinstance(updated_project["page_paths"], str):
+    # page_paths parsen
+    if isinstance(updated_project.get("page_paths"), str):
         updated_project["page_paths"] = json.loads(updated_project["page_paths"])
 
     return ProjectResponse(**updated_project)

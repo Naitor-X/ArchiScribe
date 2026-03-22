@@ -270,7 +270,7 @@ async def _insert_project(
         ) RETURNING id
         """,
         tenant_id,
-        "raw_extracted",  # Status
+        "needs_review",  # Status: Zur Überprüfung durch Architekten bereit
         project.pdf_path,
         page_paths_json,
         project.client_name,
