@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, AliasChoices
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, AliasChoices
 
 
 # === Projekt-Schemas ===
@@ -13,6 +13,8 @@ from pydantic import BaseModel, EmailStr, Field, AliasChoices
 
 class ProjectBase(BaseModel):
     """Basis-Modell für Projekt-Daten."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     # Allgemeine Angaben
     client_name: Optional[str] = None
@@ -66,6 +68,19 @@ class ProjectUpdate(ProjectBase):
     pass
 
 
+class ProjectListItem(BaseModel):
+    """Lightweight Response für Projekt-Listen (nur benötigte Felder)."""
+
+    id: UUID
+    status_id: str
+    client_name: Optional[str] = None
+    address: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class ProjectResponse(ProjectBase):
     """Response-Modell für Projekt-Daten."""
 
@@ -91,7 +106,7 @@ class ProjectWithDetails(ProjectResponse):
 class ProjectListResponse(BaseModel):
     """Response für Projekt-Liste mit Paginierung."""
 
-    projects: list[ProjectResponse]
+    projects: list[ProjectListItem]
     total: int
     page: int
     page_size: int

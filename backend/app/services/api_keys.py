@@ -244,39 +244,58 @@ async def delete_api_key(
 
 async def ensure_test_api_key() -> str:
     """
-    Stellt sicher, dass ein Test-API-Key für den Test-Tenant existiert.
+    Stellt sicher, dass der dev_api_key für den Test-Tenant in der DB existiert.
 
-    Wird für Entwicklung und Tests verwendet.
+    WICHTIG: Verwendet IMMER den dev_api_key aus der Config, damit
+    die Middleware im Development-Modus korrekt validieren kann.
 
     Returns:
-        Der Test-API-Key
+        Der Test-API-Key (dev_api_key aus Config)
     """
     from app.config import settings
 
     tenant_id = UUID(settings.test_tenant_id)
+    dev_key = settings.dev_api_key
+
+    # Hash und Prefix für dev_api_key berechnen
+    key_hash = hashlib.sha256(dev_key.encode()).hexdigest()
+    key_prefix = dev_key[:20]
 
     async with get_connection() as conn:
-        # Prüfen ob bereits ein Key existiert
-        existing_key = await conn.fetchrow(
+        # Prüfen ob der dev_api_key bereits mit korrektem Hash existiert
+        existing = await conn.fetchrow(
             """
-            SELECT key_prefix FROM api_keys
+            SELECT key_prefix, key_hash FROM api_keys
+            WHERE key_prefix = $1 AND tenant_id = $2
+            """,
+            key_prefix,
+            tenant_id,
+        )
+
+        if existing and existing["key_hash"] == key_hash:
+            logger.info(f"Test-API-Key bereits vorhanden: {key_prefix}...")
+            return dev_key
+
+        # Alte Test-Keys für diesen Tenant löschen
+        await conn.execute(
+            """
+            DELETE FROM api_keys
             WHERE tenant_id = $1 AND name = 'Test-Key'
             """,
             tenant_id,
         )
 
-        if existing_key:
-            # Bestehender Key - wir können den echten Key nicht rekonstruieren
-            # In Development-Modus verwenden wir den dev_api_key aus Config
-            logger.info(f"Test-API-Key bereits vorhanden: {existing_key['key_prefix']}...")
-            return settings.dev_api_key
-
-        # Neuen Key erstellen
-        result = await create_api_key(
-            tenant_id=tenant_id,
-            name="Test-Key",
+        # dev_api_key in DB einfügen
+        await conn.execute(
+            """
+            INSERT INTO api_keys (tenant_id, key_hash, key_prefix, name, is_active)
+            VALUES ($1, $2, $3, 'Test-Key', true)
+            """,
+            tenant_id,
+            key_hash,
+            key_prefix,
         )
 
-        logger.info(f"Test-API-Key erstellt: {result['key_prefix']}...")
+        logger.info(f"Test-API-Key erstellt: {key_prefix}...")
 
-        return result["key"]
+        return dev_key

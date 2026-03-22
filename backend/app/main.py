@@ -8,6 +8,7 @@ FastAPI-App mit:
 - API-Key-Authentifizierung für Frontend-Integration
 """
 
+import asyncio
 import re
 import uuid
 from contextlib import asynccontextmanager
@@ -16,6 +17,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app.config import settings
@@ -46,11 +48,20 @@ from app.processing import (
 from app.routers import projects_router, tenants_router
 
 
+# Globaler Event-Loop für Thread-sichere Coroutine-Ausführung
+_main_event_loop: asyncio.AbstractEventLoop | None = None
+
+
 @asynccontextmanager
 async def lifespan(app):
     """FastAPI Lifespan-Context-Manager."""
+    global _main_event_loop
+
     # === Startup ===
     logger.info(f"ArchiScribe startet (Umgebung: {settings.app_env})")
+
+    # Event-Loop für Thread-sichere Coroutine-Ausführung speichern
+    _main_event_loop = asyncio.get_running_loop()
 
     # Datenbank-Pool initialisieren
     await init_db_pool()
@@ -118,6 +129,18 @@ app.include_router(projects_router, prefix="/api/v1")
 app.include_router(tenants_router, prefix="/api/v1")
 
 
+# === Frontend (Static Files) ===
+# Pfad zum Frontend-Verzeichnis (relativ zum Backend-Root)
+FRONTEND_PATH = Path(__file__).parent.parent.parent / "frontend" / "vanilla"
+
+if FRONTEND_PATH.exists():
+    # Mount unter /app für Frontend-Routen (nicht unter / um API nicht zu stören)
+    app.mount("/app", StaticFiles(directory=FRONTEND_PATH, html=True), name="frontend")
+    logger.info(f"Frontend unter /app verfügbar: {FRONTEND_PATH}")
+else:
+    logger.warning(f"Frontend-Verzeichnis nicht gefunden: {FRONTEND_PATH}")
+
+
 # === Callbacks ===
 
 
@@ -125,10 +148,9 @@ def handle_new_pdf(file_path: Path, process_id: uuid.UUID, file_hash: str) -> No
     """
     Callback für neue PDF-Dateien vom File-Watcher.
 
-    Wird synchron aufgerufen, daher erstellen wir einen async Task.
+    Wird vom Watchdog-Thread aufgerufen, daher nutzen wir
+    run_coroutine_threadsafe() um die Coroutine im Haupt-Event-Loop auszuführen.
     """
-    import asyncio
-
     # Original-Dateiname aus Metadaten lesen
     original_filename = file_path.name
     metadata_path = file_path.parent / "metadata.json"
@@ -144,15 +166,19 @@ def handle_new_pdf(file_path: Path, process_id: uuid.UUID, file_hash: str) -> No
 
     logger.info(f"Neue PDF erkannt: {original_filename} (process_id={process_id})")
 
-    # Async Task erstellen für Non-Blocking
-    asyncio.create_task(
-        enqueue_pdf(
-            process_id=process_id,
-            pdf_path=file_path,
-            file_hash=file_hash,
-            original_filename=original_filename,
+    # Coroutine im Haupt-Event-Loop ausführen (Thread-sicher)
+    if _main_event_loop is not None:
+        asyncio.run_coroutine_threadsafe(
+            enqueue_pdf(
+                process_id=process_id,
+                pdf_path=file_path,
+                file_hash=file_hash,
+                original_filename=original_filename,
+            ),
+            _main_event_loop,
         )
-    )
+    else:
+        logger.error("Kein Event-Loop verfügbar - PDF kann nicht verarbeitet werden")
 
 
 def handle_job_complete(result: ProcessingResult) -> None:
