@@ -56,7 +56,7 @@ async def insert_test_data():
             {
                 "id": UUID("00000000-0000-0000-0001-000000000001"),
                 "tenant_id": test_tenant_id,
-                "status_id": "raw_extracted",
+                "status_id": "needs_review",
                 "client_name": "Max Mustermann",
                 "address": "Musterstraße 123, 6840 Götzis",
                 "phone": "+43 664 123456",
@@ -111,7 +111,7 @@ async def insert_test_data():
             {
                 "id": UUID("00000000-0000-0000-0001-000000000003"),
                 "tenant_id": test_tenant_id,
-                "status_id": "verified_by_architect",
+                "status_id": "aktiv",
                 "client_name": "Peter Huber",
                 "address": "Hauptstraße 78, 6900 Bregenz",
                 "phone": "+43 664 111222",
@@ -311,7 +311,7 @@ async def insert_test_data():
             "changes": {
                 "status_id": {
                     "old": "needs_review",
-                    "new": "verified_by_architect",
+                    "new": "aktiv",
                 },
                 "budget": {
                     "old": 350000,

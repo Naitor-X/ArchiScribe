@@ -1,0 +1,88 @@
+import type { Project, ProjectStatus, ProjectUpdate, ProjectsResponse } from '@/types'
+
+const API_BASE_URL = '/api/v1'
+
+// Development API-Key
+const API_KEY = 'sk-tenant-00000000-0000-0000-0000-000000000001-a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6'
+
+async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const url = `${API_BASE_URL}${endpoint}`
+
+  const defaultOptions: RequestInit = {
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': API_KEY,
+    },
+  }
+
+  const mergedOptions: RequestInit = {
+    ...defaultOptions,
+    ...options,
+    headers: {
+      ...defaultOptions.headers,
+      ...options.headers,
+    },
+  }
+
+  const response = await fetch(url, mergedOptions)
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ detail: 'Unbekannter Fehler' }))
+    console.error('API Error Response:', errorData)
+
+    // Validierungsfehler mit details.errors
+    if (errorData.details && Array.isArray(errorData.details.errors)) {
+      const messages = errorData.details.errors.map((err: { field?: string; message?: string }) =>
+        `${err.field || 'Feld'}: ${err.message || err}`
+      )
+      throw new Error('Validierungsfehler: ' + messages.join(', '))
+    }
+
+    // Pydantic Validierungsfehler
+    if (Array.isArray(errorData.detail)) {
+      const messages = errorData.detail.map((err: { loc?: string[]; msg?: string }) => {
+        const field = err.loc ? err.loc.join('.') : 'Feld'
+        return `${field}: ${err.msg}`
+      })
+      throw new Error('Validierungsfehler: ' + messages.join(', '))
+    }
+
+    throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`)
+  }
+
+  if (response.status === 204) {
+    return null as T
+  }
+
+  return response.json()
+}
+
+// API-Funktionen
+export const api = {
+  async getProjects(status: ProjectStatus | null = null): Promise<ProjectsResponse> {
+    const params = new URLSearchParams()
+    if (status) {
+      params.append('status_id', status)
+    }
+    const query = params.toString() ? `?${params.toString()}` : ''
+    return apiRequest<ProjectsResponse>(`/projects${query}`)
+  },
+
+  async getProject(id: string): Promise<Project> {
+    return apiRequest<Project>(`/projects/${id}`)
+  },
+
+  async updateProject(id: string, data: ProjectUpdate): Promise<Project> {
+    return apiRequest<Project>(`/projects/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async updateProjectStatus(id: string, status: ProjectStatus): Promise<Project> {
+    return apiRequest<Project>(`/projects/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ new_status_id: status }),
+    })
+  },
+}

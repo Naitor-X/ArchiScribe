@@ -451,7 +451,7 @@ async def update_project_status(
     Args:
         project_id: Projekt-ID
         tenant_id: Mandanten-ID
-        new_status: Neuer Status (raw_extracted, needs_review, verified_by_architect)
+        new_status: Neuer Status (needs_review, aktiv)
         changed_by_user_id: Optional User-ID für Audit-Trail
 
     Returns:
